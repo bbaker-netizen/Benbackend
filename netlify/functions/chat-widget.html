@@ -105,6 +105,16 @@
   .sheet-count { font-size: 11px; font-weight: 700; color: var(--sand, #cfb39c); margin-left: 8px; }
   /* The one quiet line under the page header that opens the chat. Styled here so
      a rebuilt page only has to write the link, never the look of it. */
+  .askbar-wrap { background: var(--plane, #f5f5f7); padding: 12px 16px 2px; }
+  .askbar { max-width: 680px; margin: 0 auto; display: flex; align-items: center; gap: 10px;
+    width: 100%; font: inherit; font-size: 15px; text-align: left; cursor: pointer;
+    padding: 13px 15px; border-radius: 50px; border: 1px solid var(--border, rgba(20,63,92,0.12));
+    background: var(--surface-1, #ffffff); color: var(--ink-muted, #928d8a); }
+  .askbar .abtext { flex: 1; }
+  .askbar .abicon { width: 19px; height: 19px; color: var(--navy, #143f5c); flex: none; }
+  .askbar .abplus { width: 26px; height: 26px; border-radius: 50%; flex: none;
+    background: var(--navy, #143f5c); color: #fff; display: flex; align-items: center;
+    justify-content: center; font-size: 17px; font-weight: 700; line-height: 1; }
   .chatline { margin: 6px 0 0; font-size: 13px; color: var(--ink-muted, #928d8a); }
   .chatline a { color: var(--navy, #143f5c); font-weight: 600; }
 
@@ -171,7 +181,8 @@
     '<div class="sheet-body" id="msgs">' +
       '<div class="msg bot">Ask me anything. I can read this page and I can pull live ' +
       'figures straight out of JobTread, so ask for a date range, a channel breakdown or a ' +
-      'specific job and I will go and look. I cannot send email or change anything.</div>' +
+      'specific job and I will go and look. You can also just tell me what you did and I ' +
+      'will keep up. I cannot send email or change anything.</div>' +
     '</div>' +
     '<div class="sheet-foot">' +
       '<textarea id="cin" rows="1" placeholder="Type your question"></textarea>' +
@@ -273,6 +284,33 @@
      /#chat also lands straight in the conversation, so Ben can bookmark that. */
 
   function openChat() { setOpen(true); }
+
+  /* An always visible way in, directly under the brand bar. Ben could not find
+     the floating button on 2 September, and a button he cannot find is a button
+     that does not exist. This one looks like something you type into. */
+  (function () {
+    var bar = document.createElement('button');
+    bar.className = 'askbar';
+    bar.setAttribute('aria-label', 'Ask anything');
+    bar.innerHTML =
+      '<svg class="abicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M21 12a8 8 0 01-8 8H7l-4 3V12a8 8 0 018-8h2a8 8 0 018 8z"/></svg>' +
+      '<span class="abtext">Ask anything, or tell me what you did</span>' +
+      '<span class="abplus">+</span>';
+    bar.addEventListener('click', openChat);
+
+    var holder = document.createElement('div');
+    holder.className = 'askbar-wrap';
+    holder.appendChild(bar);
+
+    /* After the brand bar, before .wrap. Outside .wrap on purpose. */
+    var brand = document.querySelector('.brandbar');
+    if (brand && brand.parentNode) {
+      brand.parentNode.insertBefore(holder, brand.nextSibling);
+    } else {
+      document.body.insertBefore(holder, document.body.firstChild);
+    }
+  })();
 
   document.querySelectorAll('a[href="#chat"], a[href$="/#chat"], [data-chat]').forEach(function (el) {
     el.addEventListener('click', function (e) { e.preventDefault(); openChat(); });
