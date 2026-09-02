@@ -2,5 +2,8 @@
   "name": "nuvo-command-centre",
   "private": true,
   "type": "module",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
 }

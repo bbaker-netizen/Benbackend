@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isSignedIn } from './_auth.js';
+import { listCleared } from './done.js';
 
 // The root of the site is a function, not a static file, because the page holds
 // client names, job values and team performance. Nobody sees a line of it before
@@ -128,11 +129,26 @@ function fallbackPage(detail) {
 // The chat goes in last, just inside the closing body tag, so it is appended to
 // document.body and never inside .wrap. The widget reads .wrap innerText as its
 // context; anything inside .wrap would feed the conversation back into itself.
-function inject(page, widget) {
-  if (!widget) return page;
+//
+// The cleared list rides in ahead of it. The refresh task rebuilds the page from
+// the ledger and the mailbox twice a weekday and will happily put back something
+// Ben cleared an hour ago. This is what stops that, and it is enforced here on
+// the server rather than trusted to the task.
+function inject(page, widget, cleared) {
+  const bits = [];
+  if (cleared) {
+    bits.push(
+      '<script>window.__NUVO_CLEARED__ = ' +
+      JSON.stringify(cleared).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
+  if (widget) bits.push(widget);
+  if (!bits.length) return page;
+  const blob = bits.join('\n');
   const i = page.toLowerCase().lastIndexOf('</body>');
-  if (i === -1) return page + '\n' + widget + '\n';
-  return page.slice(0, i) + widget + '\n' + page.slice(i);
+  if (i === -1) return page + '\n' + blob + '\n';
+  return page.slice(0, i) + blob + '\n' + page.slice(i);
 }
 
 export default async (request) => {
@@ -152,20 +168,25 @@ export default async (request) => {
     cachedPage = await load('command-centre.html');
   }
 
+  // Not cached. What Ben has cleared changes between requests, and a stale
+  // cleared list is the exact failure this exists to prevent.
+  const cleared = await listCleared();
+
   const headers = {
     'content-type': 'text/html; charset=utf-8',
     'cache-control': 'no-store',
-    'x-nuvo-chat': cachedWidget ? 'on' : 'missing'
+    'x-nuvo-chat': cachedWidget ? 'on' : 'missing',
+    'x-nuvo-cleared': String(cleared.length)
   };
 
   if (!cachedPage) {
-    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget), {
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, cleared), {
       status: 200,
       headers: { ...headers, 'x-nuvo-page': 'missing' }
     });
   }
 
-  return new Response(inject(cachedPage.text, cachedWidget), {
+  return new Response(inject(cachedPage.text, cachedWidget, cleared), {
     status: 200,
     headers: { ...headers, 'x-nuvo-page': 'ok' }
   });

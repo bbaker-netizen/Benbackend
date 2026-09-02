@@ -114,6 +114,16 @@
     border: 1px solid var(--border, rgba(20,63,92,0.12)); border-radius: 50px;
     padding: 7px 13px; background: var(--surface-1, #ffffff); color: var(--ink-1, #454242); }
   .act.themeask { background: transparent; color: var(--navy, #143f5c); border-style: dashed; }
+
+  /* An item Ben has cleared. Struck through and quiet, never removed outright,
+     so he can see the page got shorter because of his own work. */
+  .cleared { opacity: .5; }
+  .cleared .h, .cleared .rt, .cleared .t { text-decoration: line-through; }
+  .cleared-tag { font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--success-text, #006300); margin-top: 8px; }
+  .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+    margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
+    color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
 </style>
 <script>
 (function () {
@@ -222,6 +232,7 @@
       thinking.classList.remove('pending');
       if (d.error) { thinking.textContent = d.error; return; }
       thinking.textContent = d.answer;
+      addCopy(thinking, d.answer);
       if (d.usedLiveData) {
         var tag = document.createElement('span');
         tag.className = 'live';
@@ -261,6 +272,99 @@
 
   if (location.hash === '#chat') setTimeout(openChat, 60);
   window.addEventListener('hashchange', function () { if (location.hash === '#chat') openChat(); });
+
+  /* ---------- copy a reply ---------- */
+  /* Draft it now answers in the sheet, so he needs a way to get the words out. */
+
+  function addCopy(el, text) {
+    var b = document.createElement('button');
+    b.className = 'msg-copy';
+    b.textContent = 'Copy';
+    b.addEventListener('click', function () {
+      function ok() { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1800); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok).catch(function () {
+          b.textContent = 'Press and hold the reply to copy';
+        });
+      } else {
+        b.textContent = 'Press and hold the reply to copy';
+      }
+    });
+    el.appendChild(document.createElement('br'));
+    el.appendChild(b);
+  }
+
+  /* ---------- done ---------- */
+  /* Marking a thing done used to open his mail app. Now it posts to /api/done,
+     which outlives the twice-daily rebuild, and the item is struck through where
+     he is standing. No second app, no round trip. */
+
+  function containerOf(el) {
+    return (el.closest && el.closest('.start, .theme, .row, .item')) || el.parentElement;
+  }
+
+  function clearItem(id, stamp) {
+    var hit = false;
+    var all = document.querySelectorAll('[data-done-id]');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-done-id') !== id) continue;
+      hit = true;
+      var box = containerOf(all[i]);
+      if (!box || box.classList.contains('cleared')) continue;
+      box.classList.add('cleared');
+      var acts = box.querySelectorAll('.acts');
+      for (var j = 0; j < acts.length; j++) acts[j].parentNode.removeChild(acts[j]);
+      var tag = document.createElement('div');
+      tag.className = 'cleared-tag';
+      tag.textContent = stamp ? 'Done ' + stamp : 'Done';
+      box.appendChild(tag);
+    }
+    return hit;
+  }
+
+  function shortDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString('en-CA', { day: 'numeric', month: 'short' });
+  }
+
+  function markDone(btn, text) {
+    var label = text.split('\n')[0].trim();
+    var id = btn.getAttribute('data-done-id') || label;
+    var was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Recording';
+
+    fetch('/api/done', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: id, label: label, note: text })
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/'; return null; }
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      if (d.error) throw new Error(d.error);
+      if (!clearItem(id, shortDate(d.cleared && d.cleared.at))) {
+        btn.textContent = 'Done';
+      }
+    }).catch(function (e) {
+      /* Never a silent failure. If it did not record, say so where he is looking. */
+      btn.disabled = false;
+      btn.textContent = was;
+      setOpen(true);
+      bubble('That did not record, so I have left it on the page rather than pretend. '
+        + (e && e.message ? e.message : ''), 'bot');
+    });
+  }
+
+  /* Seed from the server. site.js reads the cleared store on every request, so an
+     item cleared this morning stays cleared through the afternoon rebuild. */
+  (function () {
+    var seeded = window.__NUVO_CLEARED__;
+    if (!seeded || !seeded.length) return;
+    for (var i = 0; i < seeded.length; i++) clearItem(seeded[i].id, shortDate(seeded[i].at));
+  })();
 
 
 
@@ -386,10 +490,23 @@
     setTimeout(function () { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }, 350);
   }
 
-  document.querySelectorAll('button[data-q]').forEach(function (b) {
-    b.addEventListener('click', function () {
+  /* One entry point. ASK asks, DRAFT drafts, DONE records, all of it in the sheet.
+     Nothing here opens a mail app any more. */
+  document.querySelectorAll('button[data-q], a[data-q]:not(.mailact)').forEach(function (b) {
+    b.addEventListener('click', function (ev) {
+      if (b.tagName === 'A') ev.preventDefault();
       var q = b.getAttribute('data-q').replace(/\\n/g, '\n');
-      if (/^ASK /.test(q)) askAbout(q.replace(/^ASK /, '')); else load(q);
+      if (/^ASK /.test(q)) {
+        askAbout(q.replace(/^ASK /, ''));
+      } else if (/^DRAFT /.test(q)) {
+        askAbout(q.replace(/^DRAFT /, '') +
+          '\n\nWrite it in my voice. Plain text I can paste straight into an email. ' +
+          'No preamble and no subject line unless I asked for one, just the message.');
+      } else if (/^DONE /.test(q)) {
+        markDone(b, q.replace(/^DONE /, ''));
+      } else {
+        load(q);
+      }
     });
   });
 
