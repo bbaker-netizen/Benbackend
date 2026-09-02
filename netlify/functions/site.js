@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isSignedIn } from './_auth.js';
-import { listCleared } from './done.js';
+import { listForPage } from './done.js';
 
 // The root of the site is a function, not a static file, because the page holds
 // client names, job values and team performance. Nobody sees a line of it before
@@ -134,7 +134,27 @@ function fallbackPage(detail) {
 // the ledger and the mailbox twice a weekday and will happily put back something
 // Ben cleared an hour ago. This is what stops that, and it is enforced here on
 // the server rather than trusted to the task.
-function inject(page, widget, cleared) {
+// A snoozed item is hidden by CSS in the HEAD, before the body paints, so there
+// is no flash of an item Ben has already put away. :has() does the work in every
+// browser he uses; the widget removes them outright as a belt and braces for
+// anything older. Nothing renders a count and nothing renders a list.
+function hideSnoozed(page, hidden) {
+  if (!hidden || !hidden.length) return page;
+  const sel = hidden
+    .map((id) => String(id).replace(/["\\]/g, ''))
+    .flatMap((id) => [
+      `.start:has([data-done-id="${id}"])`,
+      `.theme:has([data-done-id="${id}"])`,
+      `.row:has([data-done-id="${id}"])`
+    ])
+    .join(',');
+  const css = `<style>${sel}{display:none !important}</style>`;
+  const i = page.toLowerCase().lastIndexOf('</head>');
+  if (i === -1) return css + page;
+  return page.slice(0, i) + css + page.slice(i);
+}
+
+function inject(page, widget, cleared, hidden) {
   const bits = [];
   if (cleared) {
     bits.push(
@@ -143,12 +163,20 @@ function inject(page, widget, cleared) {
       ';</script>'
     );
   }
+  if (hidden && hidden.length) {
+    bits.push(
+      '<script>window.__NUVO_HIDDEN__ = ' +
+      JSON.stringify(hidden).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
   if (widget) bits.push(widget);
   if (!bits.length) return page;
   const blob = bits.join('\n');
-  const i = page.toLowerCase().lastIndexOf('</body>');
-  if (i === -1) return page + '\n' + blob + '\n';
-  return page.slice(0, i) + blob + '\n' + page.slice(i);
+  const withHide = hideSnoozed(page, hidden);
+  const i = withHide.toLowerCase().lastIndexOf('</body>');
+  if (i === -1) return withHide + '\n' + blob + '\n';
+  return withHide.slice(0, i) + blob + '\n' + withHide.slice(i);
 }
 
 export default async (request) => {
@@ -168,9 +196,9 @@ export default async (request) => {
     cachedPage = await load('command-centre.html');
   }
 
-  // Not cached. What Ben has cleared changes between requests, and a stale
-  // cleared list is the exact failure this exists to prevent.
-  const cleared = await listCleared();
+  // Not cached. What Ben has cleared or snoozed changes between requests, and a
+  // stale list is the exact failure this exists to prevent.
+  const { cleared, hidden } = await listForPage();
 
   const headers = {
     'content-type': 'text/html; charset=utf-8',
@@ -180,13 +208,13 @@ export default async (request) => {
   };
 
   if (!cachedPage) {
-    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, cleared), {
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, cleared, hidden), {
       status: 200,
       headers: { ...headers, 'x-nuvo-page': 'missing' }
     });
   }
 
-  return new Response(inject(cachedPage.text, cachedWidget, cleared), {
+  return new Response(inject(cachedPage.text, cachedWidget, cleared, hidden), {
     status: 200,
     headers: { ...headers, 'x-nuvo-page': 'ok' }
   });

@@ -14,6 +14,14 @@ import { isSignedIn, json } from './_auth.js';
 const STORE = 'nuvo-cleared';
 const MAX_AGE_DAYS = 45; // past that the ledger has caught up and it is noise
 
+// A snooze is not defer-and-nag. Until its date the item is GONE: no count, no
+// greyed row, no "3 hidden". On the morning it comes due it surfaces in The One
+// Thing and comes back to the page. Hidden means hidden.
+function isSnoozed(rec, now) {
+  if (!rec || rec.kind !== 'snooze' || !rec.until) return false;
+  return Date.parse(rec.until + 'T23:59:59Z') > now;
+}
+
 function store() {
   return getStore({ name: STORE, consistency: 'strong' });
 }
@@ -28,7 +36,9 @@ function taskAuthorised(request) {
   return got.length === want.length && got === want;
 }
 
-export async function listCleared() {
+// Everything in the store, done and snoozed alike. The scheduled tasks want the
+// lot; the page wants them split.
+export async function listAll() {
   try {
     const s = store();
     const { blobs } = await s.list();
@@ -36,7 +46,10 @@ export async function listCleared() {
     const out = [];
     for (const b of blobs) {
       const rec = await s.get(b.key, { type: 'json' });
-      if (rec && Date.parse(rec.at) > cutoff) out.push(rec);
+      if (!rec) continue;
+      // A snooze outlives the 45 day window if its date is further out.
+      const fresh = Date.parse(rec.at) > cutoff || isSnoozed(rec, Date.now());
+      if (fresh) out.push(rec);
     }
     return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   } catch (e) {
@@ -46,10 +59,32 @@ export async function listCleared() {
   }
 }
 
+// What the page needs: struck through, and vanished.
+export async function listForPage() {
+  const now = Date.now();
+  const all = await listAll();
+  return {
+    cleared: all.filter((r) => r.kind !== 'snooze'),
+    hidden: all.filter((r) => isSnoozed(r, now)).map((r) => r.id)
+  };
+}
+
+// Snoozes that came due on or before today. The One Thing surfaces these on the
+// morning they land, which is the whole point of snoozing rather than deleting.
+export async function listDueSnoozes() {
+  const now = Date.now();
+  return (await listAll()).filter((r) => r.kind === 'snooze' && !isSnoozed(r, now));
+}
+
 export default async (request) => {
   if (request.method === 'GET') {
     if (!taskAuthorised(request)) return json({ error: 'Not authorised' }, 401);
-    return json({ cleared: await listCleared() });
+    const all = await listAll();
+    return json({
+      cleared: all.filter((r) => r.kind !== 'snooze'),
+      snoozed: all.filter((r) => r.kind === 'snooze'),
+      dueToday: await listDueSnoozes()
+    });
   }
 
   if (request.method !== 'POST' && request.method !== 'DELETE') {
@@ -71,7 +106,12 @@ export default async (request) => {
   const id = String(body.id || '').trim().slice(0, 120);
   const label = String(body.label || '').trim().slice(0, 300);
   const note = String(body.note || '').trim().slice(0, 2000);
+  const until = String(body.until || '').trim().slice(0, 10);
   if (!id) return json({ error: 'No id' }, 400);
+
+  if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) {
+    return json({ error: 'Snooze date must be YYYY-MM-DD' }, 400);
+  }
 
   const key = id.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
 
@@ -93,7 +133,9 @@ export default async (request) => {
     label,
     note,
     at: new Date().toISOString(),
-    via: byTask ? 'email-reply' : 'page'
+    via: byTask ? 'email-reply' : 'page',
+    kind: until ? 'snooze' : 'done',
+    ...(until ? { until } : {})
   };
 
   try {

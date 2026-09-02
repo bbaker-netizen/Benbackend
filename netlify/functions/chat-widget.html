@@ -105,6 +105,16 @@
   .sheet-count { font-size: 11px; font-weight: 700; color: var(--sand, #cfb39c); margin-left: 8px; }
   /* The one quiet line under the page header that opens the chat. Styled here so
      a rebuilt page only has to write the link, never the look of it. */
+  .askbar-wrap { background: var(--plane, #f5f5f7); padding: 12px 16px 2px; }
+  .askbar { max-width: 680px; margin: 0 auto; display: flex; align-items: center; gap: 10px;
+    width: 100%; font: inherit; font-size: 15px; text-align: left; cursor: pointer;
+    padding: 13px 15px; border-radius: 50px; border: 1px solid var(--border, rgba(20,63,92,0.12));
+    background: var(--surface-1, #ffffff); color: var(--ink-muted, #928d8a); }
+  .askbar .abtext { flex: 1; }
+  .askbar .abicon { width: 19px; height: 19px; color: var(--navy, #143f5c); flex: none; }
+  .askbar .abplus { width: 26px; height: 26px; border-radius: 50%; flex: none;
+    background: var(--navy, #143f5c); color: #fff; display: flex; align-items: center;
+    justify-content: center; font-size: 17px; font-weight: 700; line-height: 1; }
   .chatline { margin: 6px 0 0; font-size: 13px; color: var(--ink-muted, #928d8a); }
   .chatline a { color: var(--navy, #143f5c); font-weight: 600; }
 
@@ -124,6 +134,11 @@
   .cleared-tag .undo { font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .12em;
     text-transform: uppercase; cursor: pointer; background: none; border: none;
     color: var(--ink-muted, #928d8a); text-decoration: underline; padding: 0 0 0 6px; }
+  .snoozepick { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: 6px; }
+  .act.snoozeopt { background: var(--offwhite, #f0ede8); border-style: solid; font-size: 11px; padding: 6px 11px; }
+  .snoozedate { font: inherit; font-size: 11px; padding: 5px 8px; border-radius: 50px;
+    border: 1px solid var(--border, rgba(20,63,92,0.12)); background: var(--surface-1, #fff);
+    color: var(--ink-1, #454242); }
   .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
     margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
     color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
@@ -166,7 +181,8 @@
     '<div class="sheet-body" id="msgs">' +
       '<div class="msg bot">Ask me anything. I can read this page and I can pull live ' +
       'figures straight out of JobTread, so ask for a date range, a channel breakdown or a ' +
-      'specific job and I will go and look. I cannot send email or change anything.</div>' +
+      'specific job and I will go and look. You can also just tell me what you did and I ' +
+      'will keep up. I cannot send email or change anything.</div>' +
     '</div>' +
     '<div class="sheet-foot">' +
       '<textarea id="cin" rows="1" placeholder="Type your question"></textarea>' +
@@ -268,6 +284,33 @@
      /#chat also lands straight in the conversation, so Ben can bookmark that. */
 
   function openChat() { setOpen(true); }
+
+  /* An always visible way in, directly under the brand bar. Ben could not find
+     the floating button on 2 September, and a button he cannot find is a button
+     that does not exist. This one looks like something you type into. */
+  (function () {
+    var bar = document.createElement('button');
+    bar.className = 'askbar';
+    bar.setAttribute('aria-label', 'Ask anything');
+    bar.innerHTML =
+      '<svg class="abicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M21 12a8 8 0 01-8 8H7l-4 3V12a8 8 0 018-8h2a8 8 0 018 8z"/></svg>' +
+      '<span class="abtext">Ask anything, or tell me what you did</span>' +
+      '<span class="abplus">+</span>';
+    bar.addEventListener('click', openChat);
+
+    var holder = document.createElement('div');
+    holder.className = 'askbar-wrap';
+    holder.appendChild(bar);
+
+    /* After the brand bar, before .wrap. Outside .wrap on purpose. */
+    var brand = document.querySelector('.brandbar');
+    if (brand && brand.parentNode) {
+      brand.parentNode.insertBefore(holder, brand.nextSibling);
+    } else {
+      document.body.insertBefore(holder, document.body.firstChild);
+    }
+  })();
 
   document.querySelectorAll('a[href="#chat"], a[href$="/#chat"], [data-chat]').forEach(function (el) {
     el.addEventListener('click', function (e) { e.preventDefault(); openChat(); });
@@ -379,6 +422,91 @@
         + (e && e.message ? e.message : ''), 'bot');
     });
   }
+
+  /* ---------- snooze ---------- */
+  /* Not defer-and-nag. The item goes, with no count and no greyed row, and comes
+     back in The One Thing on the morning it is due. */
+
+  function hideItem(id) {
+    var all = document.querySelectorAll('[data-done-id]');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-done-id') !== id) continue;
+      var box = containerOf(all[i]);
+      if (box && box.parentNode) box.parentNode.removeChild(box);
+    }
+  }
+
+  function ymd(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  function sendSnooze(btn, id, label, until) {
+    fetch('/api/done', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: id, label: label, until: until })
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/'; return null; }
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      if (d.error) throw new Error(d.error);
+      hideItem(id);
+    }).catch(function (e) {
+      btn.disabled = false;
+      btn.textContent = 'Snooze';
+      setOpen(true);
+      bubble('That did not snooze, so I have left it on the page rather than pretend. '
+        + (e && e.message ? e.message : ''), 'bot');
+    });
+  }
+
+  /* One tap on a site, so presets first and a date picker only if he wants one. */
+  function openSnooze(btn, id, label) {
+    var existing = btn.parentNode.querySelector('.snoozepick');
+    if (existing) { existing.parentNode.removeChild(existing); return; }
+
+    var wrap = document.createElement('span');
+    wrap.className = 'snoozepick';
+
+    var t = new Date(); t.setDate(t.getDate() + 1);
+    var w = new Date(); w.setDate(w.getDate() + (((8 - w.getDay()) % 7) || 7));
+    var m = new Date(); m.setMonth(m.getMonth() + 1);
+
+    [['Tomorrow', ymd(t)], ['Monday', ymd(w)], ['A month', ymd(m)]].forEach(function (o) {
+      var b = document.createElement('button');
+      b.className = 'act snoozeopt';
+      b.textContent = o[0];
+      b.addEventListener('click', function () {
+        btn.disabled = true; btn.textContent = 'Snoozing';
+        sendSnooze(btn, id, label, o[1]);
+      });
+      wrap.appendChild(b);
+    });
+
+    var pick = document.createElement('input');
+    pick.type = 'date';
+    pick.className = 'snoozedate';
+    pick.min = ymd(t);
+    pick.addEventListener('change', function () {
+      if (!pick.value) return;
+      btn.disabled = true; btn.textContent = 'Snoozing';
+      sendSnooze(btn, id, label, pick.value);
+    });
+    wrap.appendChild(pick);
+
+    btn.parentNode.insertBefore(wrap, btn.nextSibling);
+  }
+
+  /* Anything the server already told us is snoozed, take straight out. The CSS in
+     the head has hidden it already; this is for browsers without :has(). */
+  (function () {
+    var hidden = window.__NUVO_HIDDEN__;
+    if (!hidden || !hidden.length) return;
+    for (var i = 0; i < hidden.length; i++) hideItem(hidden[i]);
+  })();
 
   /* Seed from the server. site.js reads the cleared store on every request, so an
      item cleared this morning stays cleared through the afternoon rebuild. */
@@ -526,6 +654,10 @@
           'No preamble and no subject line unless I asked for one, just the message.');
       } else if (/^DONE /.test(q)) {
         markDone(b, q.replace(/^DONE /, ''));
+      } else if (/^SNOOZE /.test(q)) {
+        var st = q.replace(/^SNOOZE /, '');
+        var sl = st.split('\n')[0].trim();
+        openSnooze(b, b.getAttribute('data-done-id') || sl, sl);
       } else {
         load(q);
       }
@@ -546,35 +678,10 @@
     });
   });
 
-  /* Ask about this, on every theme and every row */
-  function attach(el, title, body, tail) {
-    if (!title.trim()) return;
-    var b = document.createElement('button');
-    b.className = 'act themeask';
-    b.textContent = 'Ask about this';
-    b.addEventListener('click', function () {
-      askAbout(title.trim() + '\n\n' + body.trim() + '\n' + (tail || '').trim() +
-        '\n\nWhat do I actually do about this? One recommendation, who owns it, what done looks like. No recurring task on me.');
-    });
-    var h = document.createElement('div');
-    h.className = 'acts';
-    h.appendChild(b);
-    el.appendChild(h);
-  }
-
-  document.querySelectorAll('.theme').forEach(function (th) {
-    var h = th.querySelector('.h');
-    if (!h) return;
-    attach(th, h.textContent.replace(/^\s*Good\s*/i, ''),
-      (th.querySelector('.b') || {}).textContent || '',
-      (th.querySelector('.mg') || {}).textContent || '');
-  });
-
-  document.querySelectorAll('.row').forEach(function (r) {
-    if (r.querySelector('.acts')) return;
-    attach(r, (r.querySelector('.rt') || {}).textContent || '',
-      (r.querySelector('.rm') || {}).textContent || '', '');
-  });
+  /* The generic "Ask about this" button was removed on 2 September 2026. It was
+     the same on every item and it taught Ben nothing. The page now writes two or
+     three specific actions per item, drawn from that item and from
+     claude/lessons.md. See that file before changing this. */
 
   /* ---------- composer ---------- */
 
