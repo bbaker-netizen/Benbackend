@@ -319,6 +319,12 @@
     b.style.fontSize = '13px';
   }
 
+  /* The tabs partial has its own items — notes, drafts, reports — and they want
+     the same per item Ask. It is exposed rather than duplicated so there is one
+     implementation of what "ask about this" means. */
+  window.__NUVO_ASK_ITEM__ = askAboutItem;
+  window.__NUVO_OPEN_CHAT__ = function () { setOpen(true); };
+
   /* ---------- one tap in ---------- */
   /* Anything on the page that points at #chat opens the sheet. The rebuild task
      only has to write a plain link; the wiring is here and cannot go stale.

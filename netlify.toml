@@ -14,4 +14,8 @@
   node_bundler = "esbuild"
 
 [functions.site]
-  included_files = ["command-centre.html", "netlify/functions/chat-widget.html"]
+  included_files = [
+    "command-centre.html",
+    "netlify/functions/chat-widget.html",
+    "netlify/functions/tabs.html"
+  ]

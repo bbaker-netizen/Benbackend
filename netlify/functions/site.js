@@ -86,6 +86,7 @@ async function load(name) {
 // always arrives with a new deploy and there is no stale cache to worry about.
 let cachedPage = null;
 let cachedWidget = null;
+let cachedTabs = null;
 
 // If the page file is ever missing, say so plainly. A blank screen or a stale
 // page presented as current is worse than an honest empty one, and the chat
@@ -154,7 +155,7 @@ function hideSnoozed(page, hidden) {
   return page.slice(0, i) + css + page.slice(i);
 }
 
-function inject(page, widget, cleared, hidden) {
+function inject(page, widget, tabs, cleared, hidden) {
   const bits = [];
   if (cleared) {
     bits.push(
@@ -171,6 +172,10 @@ function inject(page, widget, cleared, hidden) {
     );
   }
   if (widget) bits.push(widget);
+  /* The tabs go in after the chat, because the Notes tab borrows the chat's
+     "ask about this" rather than writing a second one, and the widget has to
+     have published it first. */
+  if (tabs) bits.push(tabs);
   if (!bits.length) return page;
   const blob = bits.join('\n');
   const withHide = hideSnoozed(page, hidden);
@@ -192,6 +197,11 @@ export default async (request) => {
     cachedWidget = w ? w.text : '';
   }
 
+  if (cachedTabs === null) {
+    const t = await load('tabs.html');
+    cachedTabs = t ? t.text : '';
+  }
+
   if (cachedPage === null) {
     cachedPage = await load('command-centre.html');
   }
@@ -204,17 +214,20 @@ export default async (request) => {
     'content-type': 'text/html; charset=utf-8',
     'cache-control': 'no-store',
     'x-nuvo-chat': cachedWidget ? 'on' : 'missing',
+    'x-nuvo-tabs': cachedTabs ? 'on' : 'missing',
     'x-nuvo-cleared': String(cleared.length)
   };
 
   if (!cachedPage) {
-    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, cleared, hidden), {
+    /* No tabs on the fallback page. There is no Today to tab away from, and a
+       tab bar over an apology reads like the page is fine. */
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cleared, hidden), {
       status: 200,
       headers: { ...headers, 'x-nuvo-page': 'missing' }
     });
   }
 
-  return new Response(inject(cachedPage.text, cachedWidget, cleared, hidden), {
+  return new Response(inject(cachedPage.text, cachedWidget, cachedTabs, cleared, hidden), {
     status: 200,
     headers: { ...headers, 'x-nuvo-page': 'ok' }
   });
