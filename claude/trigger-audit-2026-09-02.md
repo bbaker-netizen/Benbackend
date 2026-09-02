@@ -5,13 +5,17 @@ are not delivering, and what will and will not fix it.
 
 ## Headline
 
-All six enabled recurring Nuvo tasks are firing on schedule. None of them is
-finishing. Every one stalls partway through on an **unanswered tool-permission
-prompt**, because the run is unattended and nobody is there to approve it. The
-session is then marked `ABANDONED`.
+All six enabled recurring Nuvo tasks are firing on schedule. None of their
+*scheduled* runs is finishing. Every one stalls partway through on an
+**unanswered tool-permission prompt**, because the run is unattended and nobody
+is there to approve it. The session is then marked `ABANDONED`.
 
 This is an authorisation problem, not a broken-trigger problem. The trigger
 definitions, crons and prompts are all fine.
+
+**A force-fired run of the same trigger completes normally.** See "Force-fire is
+not a valid test" below. This is the single most important operational finding
+in this audit and it invalidates the obvious test method.
 
 ## Inventory
 
@@ -72,6 +76,38 @@ The social drafts task got further still — it had the finished post written an
 was stalled on the call that would have saved it to Buffer as a draft. The work
 was done. It just could not be delivered.
 
+## Force-fire is not a valid test
+
+`trig_01NyZ1GbMUciuDcU6Ze9kXUX` (command centre refresh) was force-fired from an
+interactive session at 18:10:08 UTC on 2 September as a diagnostic. It ran to
+completion in about 7.5 minutes:
+
+- `session_status: SESSION_STATUS_IDLE`
+- `status_bucket: SESSION_STATUS_BUCKET_REVIEW_READY`
+- no `pending_action`
+- real work done: 33,208 output tokens, $5.40
+
+The same trigger, same prompt, unchanged, had blocked that morning at 12:40 UTC
+on `mcp__Microsoft_365__outlook_calendar_search`.
+
+The only recorded difference between the two runs is `origin`:
+`force_run_trigger` versus `scheduled_trigger`.
+
+**Inference.** A force-fire initiated from an interactive session appears to
+carry an approval context that a scheduled fire does not have, so it sails past
+the gate that stops the scheduled run.
+
+**Competing explanation, not yet ruled out.** Something may simply have changed
+between 12:40 and 18:10 — a permission approved by hand, or a connector
+re-authorised — in which case scheduled runs are now fine too.
+
+These two are distinguishable only by watching a real scheduled run. The next one
+is 20:30 UTC (2:30pm Mountain) the same day.
+
+**Consequence for testing.** "Force-fire it and see if it delivers" cannot
+confirm these tasks are fixed. It can return green while every scheduled run
+still fails. Only an observed scheduled run counts as proof.
+
 ## Root cause, and the date it started
 
 **Fact.** The only `SUCCEEDED` run anywhere in the account's trigger records is
@@ -121,8 +157,11 @@ approval for unattended runs:
 - `mcp__Buffer__create_post` (blocks the social drafts)
 
 Once those are pre-approved for scheduled runs, the existing six triggers should
-complete unchanged. Re-test by force-firing each and confirming the session
-reaches `SESSION_STATUS_IDLE` rather than `REQUIRES_ACTION`.
+complete unchanged.
+
+Do **not** verify by force-firing. Per the section above, a force-fire passes
+regardless. Verify by letting each task run on its own schedule and checking that
+the resulting session reaches `SESSION_STATUS_IDLE` rather than `REQUIRES_ACTION`.
 
 ## Note on `claude/build-state.md`
 
@@ -135,3 +174,72 @@ which is empty and has no commit history. This session has neither tool.
 
 This audit was written to a separate filename deliberately, so it does not
 compete with the real `build-state.md` as a second source of truth.
+
+## Hosting the command centre — blocked
+
+Requested: pull the live `nuvo-command-centre` deploy into this repo, add
+`command-centre.html` served at `/` behind the app's existing login, move the
+JobTread chat to a link on that page, and have the trigger redeploy the whole app
+each run rather than dropping a bare HTML file.
+
+The plan is sound. It cannot be executed from this session.
+
+### What is actually deployed there
+
+Site `30bdd77c-2d79-4967-a130-5e84e92cd64c`, deploy `6a74ea1952c521afee2c1eb9`,
+published 2026-08-06, 24 files and **five serverless functions**:
+
+| Function | Route | Purpose |
+|---|---|---|
+| `site` | `/` | serves the page — the root is a function, not an index.html |
+| `login` | `/api/login` | the app's own login |
+| `_auth` | — | auth helper |
+| `chat` | `/api/chat` | the live chat |
+| `jobtread` | — | live JobTread access |
+
+`deploy_source: api`, `public_repo: null`, `commit_ref: null` — it was uploaded
+as a zip drop, not built from a git repository. So the source is not in any repo;
+it exists only in the Netlify deploy.
+
+### The blocker
+
+Retrieving that source needs the Netlify API, and this environment's egress
+policy denies it:
+
+```
+2026-09-02T18:19:42Z  connect_rejected  api.netlify.com:443
+    gateway answered 403 to CONNECT (policy denial)
+2026-09-02T18:13:34Z  connect_rejected  nuvo-command-centre.netlify.app:443
+    gateway answered 403 to CONNECT (policy denial)
+```
+
+There is no other route:
+
+- No `NETLIFY_AUTH_TOKEN` in the environment and no Netlify CLI installed.
+- The Netlify MCP server offers only `get-deploy`, `get-deploy-for-site` and
+  `deploy-site`. It has no operation that reads or downloads deploy files.
+
+### Why no deploy was attempted
+
+`deploy-site` publishes the working directory. This working directory does not
+contain the app. Calling it would have replaced the five-function authenticated
+app with the contents of this repo — precisely the bare-HTML overwrite that was
+ruled out. Rolling that back would mean re-uploading a source zip nobody holds a
+copy of.
+
+Nothing on Netlify was created, modified or deployed.
+
+### To unblock, any one of these
+
+1. Allow `api.netlify.com` in the environment's egress policy, and provide a
+   Netlify personal access token. Everything else then proceeds unattended.
+2. Download the deploy zip from the Netlify dashboard
+   (`app.netlify.com/projects/nuvo-command-centre` → Deploys → the 6 Aug deploy)
+   and commit it to this repo.
+3. Point at wherever the app was built, if a working copy still exists outside
+   Netlify.
+
+Once the source is in the repo, the rest is straightforward: add
+`command-centre.html`, adjust the `site` function to serve it at `/` behind the
+existing `_auth` check, replace the in-page chat with a link to `/api/chat`, and
+change the trigger's delivery step to redeploy the whole directory.
