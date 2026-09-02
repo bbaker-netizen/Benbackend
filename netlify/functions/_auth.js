@@ -69,3 +69,22 @@ export function json(body, status = 200, extraHeaders = {}) {
     headers: { 'content-type': 'application/json', ...extraHeaders }
   });
 }
+
+// The scheduled tasks have no session, so they carry a token instead. Several
+// endpoints need this now — done, notes, blog, reports — so it lives here rather
+// than being copied four times and drifting.
+export function taskAuthorised(request) {
+  const want = process.env.TASK_TOKEN;
+  if (!want) return false;
+  const got = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  return got.length === want.length && got === want;
+}
+
+// Either a signed-in person on the page, or a scheduled task. Returns which,
+// because several endpoints let the task do things the page must not, and the
+// other way round.
+export function who(request) {
+  if (taskAuthorised(request)) return 'task';
+  if (isSignedIn(request)) return 'page';
+  return null;
+}
