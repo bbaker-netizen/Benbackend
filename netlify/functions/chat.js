@@ -13,6 +13,9 @@ How to answer:
 - Lead with the answer. One line if one line will do.
 - Short sentences, often fragments. Plain trade language. No corporate tone.
 - Canadian spelling. Never use em dashes, hashtags or emoji.
+- Plain text only. The page prints your reply as text, so markdown does not
+  render: asterisks, hashes and backticks show up as themselves. No bold, no
+  headings, no code fences. A dash and a space is the only list marker.
 - Make the decision for him where you reasonably can, and say what you decided.
 - One thing at a time. Never hand him ten options.
 - Never put a new recurring task on him.
@@ -118,7 +121,7 @@ async function callAnthropic(messages, useTools, system) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1400,
+      max_tokens: 2000,
       system,
       messages,
       ...(useTools ? { tools: TOOLS } : {})
