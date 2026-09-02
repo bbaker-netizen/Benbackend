@@ -165,6 +165,9 @@
   .chint { font-size: 12px; color: rgba(255,255,255,.7); line-height: 1.35; }
   button.act { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   a { color: var(--navy); }
+  .staleflag { border-left: 3px solid var(--critical); background: var(--offwhite);
+    padding: 12px 14px; margin: 12px 0 4px; font-size: 13px; line-height: 1.5;
+    color: var(--ink-1); border-radius: 0 8px 8px 0; }
   .foot { margin-top: 30px; font-size: 12px; color: var(--ink-muted); line-height: 1.6; }
 </style>
 </head>
@@ -178,7 +181,17 @@
 
 <header>
   <h1>Command Centre</h1>
-  <div class="stamp">Saturday 1 August 2026</div>
+  <div class="stamp">Operational content: Saturday 1 August 2026. Marketing: Tuesday 2 September 2026.</div>
+  <div class="staleflag">
+    <b>This page has not refreshed itself since 1 August.</b> The twice daily task that
+    rewrites it is firing on schedule but stalling part way through on a tool it is not
+    approved to use, so it never gets as far as publishing a new page. Everything below
+    except the marketing panel is a month old. Treat the names, dates and counts as a
+    record of where things stood on 1 August, not as today.
+    <br><br>
+    The marketing panel <b>is</b> current, pulled live on 2 September. So is the chat,
+    which reads JobTread as it is right now. Ask it anything the page cannot answer.
+  </div>
   <p class="chatline"><a href="https://nuvo-command-centre.netlify.app/#chat">Ask, with live JobTread</a> &middot; it reads this page and goes and looks up anything that is not on it.</p>
 </header>
 
