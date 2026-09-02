@@ -183,6 +183,22 @@ export default async (request) => {
     rec.wpUrl = String(body.wpUrl || '').slice(0, 500) || null;
     rec.wpAt = now;
     rec.state = 'published';
+  } else if (action === 'discard') {
+    // Task only, and never for a draft still waiting on him. A blog draft is
+    // working material, not a ledger entry: once it is in WordPress or he threw
+    // it out and the lesson has been written, keeping it forever just makes the
+    // Decided list longer. The lesson in claude/voice-lessons.md is the thing
+    // that was worth keeping, and that is in git.
+    if (caller !== 'task') return json({ error: 'Not allowed' }, 403);
+    if (rec.state === 'pending' || rec.state === 'approved') {
+      return json({ error: 'That draft is still waiting on Ben. Leave it.' }, 400);
+    }
+    try {
+      await store().delete(k);
+    } catch (e) {
+      return json({ error: 'Could not discard that. ' + String(e.message || e) }, 502);
+    }
+    return json({ ok: true, discarded: rec.id });
   } else if (action === 'lesson-written') {
     if (caller !== 'task') return json({ error: 'Not allowed' }, 403);
     rec.edits = (rec.edits || []).map((e) => ({ ...e, lessonWritten: true }));

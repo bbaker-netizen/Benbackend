@@ -33,13 +33,23 @@ function staleSince(rec) {
   return Date.parse(rec.lastOpened || rec.activatedAt || rec.createdAt || 0);
 }
 
+// Exported so the rule can be tested without waiting thirty days for it to fire.
+// Only an active report goes stale: a paused one is already paused, and a
+// requested one has not been built yet, so there is nothing he could have opened.
+export function isStale(rec, now) {
+  if (!rec || rec.state !== 'active') return false;
+  const seen = staleSince(rec);
+  if (!seen) return false;
+  return seen < now - STALE_DAYS * 86400000;
+}
+
 // The pause is applied when the list is read, not by a nightly job. A job that
 // has to run for the rule to hold is a rule that silently stops holding.
 async function readAll() {
   const s = store();
   const { blobs } = await s.list();
   const out = [];
-  const cutoff = Date.now() - STALE_DAYS * 86400000;
+  const now = Date.now();
   for (const b of blobs) {
     let rec;
     try {
@@ -48,7 +58,7 @@ async function readAll() {
       continue;
     }
     if (!rec) continue;
-    if (rec.state === 'active' && staleSince(rec) < cutoff) {
+    if (isStale(rec, now)) {
       rec.state = 'paused';
       rec.pausedAt = new Date().toISOString();
       rec.pausedReason = 'Not opened in ' + STALE_DAYS + ' days';
@@ -234,6 +244,22 @@ export default async (request) => {
   } else if (action === 'paused-notified') {
     if (caller !== 'task') return json({ error: 'Not allowed' }, 403);
     rec.pausedNotified = true;
+  } else if (action === 'discard') {
+    // Task only, and only ever for something already dropped. Without this the
+    // "Paused and stopped" list grows for the life of the app and Ben ends up
+    // scrolling past two years of things he decided not to read. Notes are the
+    // opposite and are never deleted; a dropped report is not a record of
+    // anything, it is a thing he turned off.
+    if (caller !== 'task') return json({ error: 'Not allowed' }, 403);
+    if (rec.state !== 'dropped') {
+      return json({ error: 'Only a dropped report can be discarded. Drop it first.' }, 400);
+    }
+    try {
+      await store().delete(k);
+    } catch (e) {
+      return json({ error: 'Could not discard that. ' + String(e.message || e) }, 502);
+    }
+    return json({ ok: true, discarded: rec.id });
   } else {
     return json({ error: 'Unknown action' }, 400);
   }
