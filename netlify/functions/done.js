@@ -18,8 +18,9 @@ function store() {
   return getStore({ name: STORE, consistency: 'strong' });
 }
 
-// Reading: the page never calls this, site.js reads the store directly. This is
-// for the scheduled tasks, which have no session, so it takes a token instead.
+// The scheduled tasks have no session, so they carry a token instead. They need
+// to WRITE as well as read: Ben can reply DONE to the daily email, and the task
+// that reads that reply has to be able to record it.
 function taskAuthorised(request) {
   const want = process.env.TASK_TOKEN;
   if (!want) return false;
@@ -54,7 +55,11 @@ export default async (request) => {
   if (request.method !== 'POST' && request.method !== 'DELETE') {
     return json({ error: 'Use POST or DELETE' }, 405);
   }
-  if (!isSignedIn(request)) return json({ error: 'Not signed in' }, 401);
+
+  // Either a signed-in person tapping the page, or a scheduled task acting on
+  // something Ben replied by email.
+  const byTask = taskAuthorised(request);
+  if (!byTask && !isSignedIn(request)) return json({ error: 'Not signed in' }, 401);
 
   let body;
   try {
@@ -81,7 +86,15 @@ export default async (request) => {
     return json({ ok: true, undone: id });
   }
 
-  const record = { id, label, note, at: new Date().toISOString() };
+  // Record how it was cleared, so the Friday sweep can tell Ben whether he
+  // tapped it or replied to the email, and so a bad email parse is traceable.
+  const record = {
+    id,
+    label,
+    note,
+    at: new Date().toISOString(),
+    via: byTask ? 'email-reply' : 'page'
+  };
 
   try {
     await store().setJSON(key, record);
