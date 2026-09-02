@@ -139,6 +139,16 @@
   .snoozedate { font: inherit; font-size: 11px; padding: 5px 8px; border-radius: 50px;
     border: 1px solid var(--border, rgba(20,63,92,0.12)); background: var(--surface-1, #fff);
     color: var(--ink-1, #454242); }
+  /* The + on the end of every item's actions. Deliberately not styled like the
+     specific actions beside it: those do a named thing, this one opens a
+     conversation. */
+  button.act.abask { display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; color: var(--navy, #143f5c);
+    border-color: var(--navy, #143f5c); border-style: dashed; }
+  .abask .abaskplus { display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%; background: var(--navy, #143f5c);
+    color: #fff; font-size: 12px; font-weight: 700; line-height: 1; }
+
   .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
     margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
     color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
@@ -153,9 +163,23 @@
   /* Voice rules now live on the server, in netlify/functions/chat.js */
 
   function pageContext() {
-    var c = document.querySelector('.wrap');
-    return (c ? c.innerText : '').replace(/\s+\n/g, '\n').slice(0, 12000);
+    /* The brand bar has a .wrap of its own and it comes first in the document,
+       so querySelector('.wrap') used to hand the chat the word NUVO and stop.
+       Take the content wrap: the one that is not inside the brand bar. */
+    var all = document.querySelectorAll('.wrap');
+    var c = null;
+    function readable(el) { return el ? String(el.innerText || el.textContent || '') : ''; }
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].closest('.brandbar')) continue;
+      if (!c || readable(all[i]).length > readable(c).length) c = all[i];
+    }
+    return readable(c).replace(/\s+\n/g, '\n').slice(0, 12000);
   }
+
+  /* Set when Ben taps Ask on a particular item. The next thing he types is about
+     that item, so it rides along to the model once and is then cleared. It is
+     never shown in the conversation, because he can already see the item. */
+  var itemContext = null;
 
   /* ---------- floating chat ---------- */
 
@@ -233,11 +257,13 @@
     var thinking = bubble('...', 'bot pending');
 
     csend.disabled = true;
+    var carried = itemContext;
+    itemContext = null;
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        question: q,
+        question: carried ? carried + q : q,
         page: pageContext(),
         history: history.slice(-8).map(function (m) {
           return { role: m.who === 'me' ? 'user' : 'assistant', text: m.text };
@@ -277,6 +303,21 @@
   });
 
   function askAbout(q) { setOpen(true); send(q); }
+
+  /* Ask, scoped to one item. The specific actions on an item answer the
+     questions worth pre-writing. This is for the ones that are not: it opens the
+     chat already knowing which item he is looking at, and then gets out of the
+     way so he can type. It does not fire a question of its own. */
+  function askAboutItem(title, body) {
+    itemContext =
+      'Ben is looking at this item on his command centre page:\n\n' +
+      title + (body ? '\n' + body : '') +
+      '\n\nHis question about it follows. Answer about this item.\n\n';
+    setOpen(true);
+    var b = bubble('About: ' + title, 'bot');
+    b.style.opacity = '.75';
+    b.style.fontSize = '13px';
+  }
 
   /* ---------- one tap in ---------- */
   /* Anything on the page that points at #chat opens the sheet. The rebuild task
@@ -678,10 +719,40 @@
     });
   });
 
-  /* The generic "Ask about this" button was removed on 2 September 2026. It was
-     the same on every item and it taught Ben nothing. The page now writes two or
-     three specific actions per item, drawn from that item and from
-     claude/lessons.md. See that file before changing this. */
+  /* The generic "Ask about this" button was removed on 2 September 2026, because
+     it was the same on every item and taught Ben nothing. The page now writes two
+     or three specific actions per item, drawn from that item and from
+     claude/lessons.md. See that file before changing those.
+     What went with it, wrongly, was any per item way to ask a question nobody had
+     pre written. This puts that back as a small + on the end of each row. It is
+     added here rather than in the page so the twice daily rebuild cannot lose it
+     again, and so it appears on every item without the task remembering to. */
+  (function () {
+    function textOf(box, sel) {
+      var el = box.querySelector(sel);
+      if (!el) return '';
+      return String(el.innerText || el.textContent || '').trim();
+    }
+    var rows = document.querySelectorAll('.acts');
+    for (var i = 0; i < rows.length; i++) {
+      var acts = rows[i];
+      if (acts.querySelector('.abask')) continue;
+      var box = containerOf(acts.querySelector('[data-done-id]') || acts) || acts.parentNode;
+      if (!box) continue;
+      var title = textOf(box, '.t') || textOf(box, '.rt') || textOf(box, '.h') || textOf(box, '.mt');
+      if (!title) continue;
+      var body = (textOf(box, '.m') || textOf(box, '.rm') || '').slice(0, 900);
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'act abask';
+      b.setAttribute('aria-label', 'Ask about this item');
+      b.innerHTML = '<span class="abaskplus">+</span><span>Ask</span>';
+      (function (t, m) {
+        b.addEventListener('click', function () { askAboutItem(t, m); });
+      })(title, body);
+      acts.appendChild(b);
+    }
+  })();
 
   /* ---------- composer ---------- */
 
