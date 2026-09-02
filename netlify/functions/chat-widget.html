@@ -1,0 +1,617 @@
+<!-- Nuvo Command Centre, chat widget.
+     Injected into the page by netlify/functions/site.js, never written into
+     command-centre.html itself. The refresh task rebuilds the dashboard twice a
+     weekday; the chat must not be its job to get right each time. It lives here,
+     is fixed once, and is wired to /api/chat, which has live JobTread. -->
+<style>
+  /* Fallbacks on every custom property, so the widget looks right even if the
+     page it lands in never declared the brand palette. */
+
+  /* floating chat */
+  .fab {
+    position: fixed; right: 16px; bottom: 18px; z-index: 60;
+    display: flex; align-items: center; gap: 7px;
+    font: inherit; font-size: 14px; font-weight: 700;
+    padding: 12px 18px; border-radius: 50px; border: none; cursor: pointer;
+    background: var(--navy, #143f5c); color: #fff;
+    box-shadow: 0 6px 20px rgba(0,0,0,.28);
+    transition: opacity .15s, transform .15s;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .fab { background: #143f5c; color: #fff; }
+  }
+  .fab svg { width: 18px; height: 18px; }
+  .fab.hid { opacity: 0; pointer-events: none; transform: translateY(8px); }
+
+  .sheet {
+    position: fixed; z-index: 61; right: 0; bottom: 0; left: 0;
+    margin: 0 auto; max-width: 680px;
+    background: var(--surface-1, #ffffff);
+    border: 1px solid var(--border, rgba(20,63,92,0.12)); border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 34px rgba(0,0,0,.26);
+    display: flex; flex-direction: column;
+    max-height: 78vh; max-height: 78dvh;
+  }
+  .sheet-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 14px 11px; border-bottom: 1px solid var(--grid, #e0e0df);
+    background: var(--navy, #143f5c); border-radius: 16px 16px 0 0;
+  }
+  .sheet-t { font-size: 14px; font-weight: 700; color: #fff; }
+  .sheet-x {
+    margin-left: auto; background: none; border: none; cursor: pointer;
+    color: var(--sand, #cfb39c); font-size: 26px; line-height: 1; padding: 0 4px;
+  }
+  .sheet-body { overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+  .msg {
+    font-size: 15px; line-height: 1.5; padding: 10px 13px; border-radius: 13px;
+    max-width: 88%; white-space: pre-wrap; word-wrap: break-word;
+  }
+  .msg.bot { background: var(--offwhite, #f0ede8); color: var(--ink-1, #454242); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.me  { background: var(--navy, #143f5c); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .msg.me { background: #143f5c; color: #fff; }
+  }
+  .msg.pending { opacity: .55; }
+  .sheet-foot {
+    display: flex; align-items: flex-end; gap: 8px;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--grid, #e0e0df);
+  }
+  .sheet-foot textarea {
+    flex: 1; resize: none; font: inherit; font-size: 16px; line-height: 1.4;
+    padding: 10px 13px; border-radius: 20px; border: 1px solid var(--border, rgba(20,63,92,0.12));
+    background: var(--offwhite, #f0ede8); color: var(--ink-1, #454242); max-height: 120px; overflow-y: auto;
+  }
+  .sheet-foot textarea:focus { outline: 2px solid var(--navy, #143f5c); outline-offset: 1px; }
+  .sheet-send {
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+    border: none; cursor: pointer; background: var(--navy, #143f5c); color: #fff;
+    display: grid; place-items: center;
+  }
+  .sheet-send:disabled { opacity: .5; }
+  .sheet-send svg { width: 19px; height: 19px; }
+  body.sheet-open { overflow: hidden; }
+
+  .sheet-grip { padding: 7px 0 3px; cursor: ns-resize; touch-action: none; background: var(--navy, #143f5c);
+    border-radius: 16px 16px 0 0; display: grid; place-items: center; }
+  .sheet-grip span { display: block; width: 42px; height: 4px; border-radius: 4px;
+    background: rgba(255,255,255,.34); }
+  .sheet-head { border-radius: 0 !important; }
+  .sheet.resizing { transition: none; user-select: none; }
+  .sheet-mic {
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--border, rgba(20,63,92,0.12)); cursor: pointer; background: var(--offwhite, #f0ede8);
+    color: var(--navy, #143f5c); display: grid; place-items: center;
+  }
+  .sheet-mic svg { width: 19px; height: 19px; }
+  .sheet-mic.rec { background: var(--critical, #d03b3b); color: #fff; border-color: var(--critical, #d03b3b);
+    animation: pulse 1.1s ease-in-out infinite; }
+  .sheet-mic.off { opacity: .4; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(208,59,59,.55); } 50% { box-shadow: 0 0 0 7px rgba(208,59,59,0); } }
+  .live { display: inline-block; margin-top: 6px; font-size: 10px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--success-text, #006300); }
+  .signout { color: var(--ink-muted, #928d8a); text-decoration: underline; }
+  .sheet-hint { font-size: 12px; color: var(--ink-muted, #928d8a); padding: 0 14px 8px; }
+
+  .sheet[hidden] { display: none !important; }
+  .sheet-min { background: none; border: none; cursor: pointer; color: var(--sand, #cfb39c);
+    font-size: 24px; line-height: 1; padding: 0 6px; margin-left: auto; }
+  .sheet-x { margin-left: 0 !important; }
+  .sheet.min { height: auto !important; max-height: none; }
+  .sheet.min .sheet-body, .sheet.min .sheet-foot, .sheet.min .sheet-grip, .sheet.min .sheet-hint { display: none; }
+  .sheet.min .sheet-head { cursor: pointer; border-radius: 16px 16px 0 0; }
+  .sheet-count { font-size: 11px; font-weight: 700; color: var(--sand, #cfb39c); margin-left: 8px; }
+  /* The one quiet line under the page header that opens the chat. Styled here so
+     a rebuilt page only has to write the link, never the look of it. */
+  .chatline { margin: 6px 0 0; font-size: 13px; color: var(--ink-muted, #928d8a); }
+  .chatline a { color: var(--navy, #143f5c); font-weight: 600; }
+
+  /* Quiet dashed "Ask about this" buttons, in case the page did not style them. */
+  .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+  button.act { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border, rgba(20,63,92,0.12)); border-radius: 50px;
+    padding: 7px 13px; background: var(--surface-1, #ffffff); color: var(--ink-1, #454242); }
+  .act.themeask { background: transparent; color: var(--navy, #143f5c); border-style: dashed; }
+
+  /* An item Ben has cleared. Struck through and quiet, never removed outright,
+     so he can see the page got shorter because of his own work. */
+  .cleared { opacity: .5; }
+  .cleared .h, .cleared .rt, .cleared .t { text-decoration: line-through; }
+  .cleared-tag { font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--success-text, #006300); margin-top: 8px; }
+  .cleared-tag .undo { font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; cursor: pointer; background: none; border: none;
+    color: var(--ink-muted, #928d8a); text-decoration: underline; padding: 0 0 0 6px; }
+  .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+    margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
+    color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
+</style>
+<script>
+(function () {
+  var box = document.getElementById('box');
+  var ask = document.querySelector('.ask');
+
+  /* ---------- shared context ---------- */
+
+  /* Voice rules now live on the server, in netlify/functions/chat.js */
+
+  function pageContext() {
+    var c = document.querySelector('.wrap');
+    return (c ? c.innerText : '').replace(/\s+\n/g, '\n').slice(0, 12000);
+  }
+
+  /* ---------- floating chat ---------- */
+
+  var history = [];
+  var open = false;
+
+  var fab = document.createElement('button');
+  fab.className = 'fab';
+  fab.setAttribute('aria-label', 'Ask about this page');
+  fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-8 8H7l-4 3V12a8 8 0 018-8h2a8 8 0 018 8z"/></svg><span>Ask</span>';
+  document.body.appendChild(fab);
+
+  var sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.hidden = true;
+  sheet.innerHTML =
+    '<div class="sheet-grip" title="Drag to resize"><span></span></div>' +
+    '<div class="sheet-head">' +
+      '<span class="sheet-t">Ask about this page</span>' +
+      '<button class="sheet-min" aria-label="Minimise">&minus;</button>' +
+      '<button class="sheet-x" aria-label="Close">&times;</button>' +
+    '</div>' +
+    '<div class="sheet-body" id="msgs">' +
+      '<div class="msg bot">Ask me anything. I can read this page and I can pull live ' +
+      'figures straight out of JobTread, so ask for a date range, a channel breakdown or a ' +
+      'specific job and I will go and look. I cannot send email or change anything.</div>' +
+    '</div>' +
+    '<div class="sheet-foot">' +
+      '<textarea id="cin" rows="1" placeholder="Type your question"></textarea>' +
+      '<button class="sheet-mic" id="cmic" aria-label="Dictate">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>' +
+      '</button>' +
+      '<button class="sheet-send" id="csend" aria-label="Send">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>' +
+      '</button>' +
+    '</div>';
+  document.body.appendChild(sheet);
+
+  var msgs  = sheet.querySelector('#msgs');
+  var cin   = sheet.querySelector('#cin');
+  var csend = sheet.querySelector('#csend');
+
+  function setOpen(v) {
+    open = v;
+    sheet.hidden = !v;
+    if (v && sheet.classList.contains('min')) setMin(false);
+    document.body.classList.toggle('sheet-open', v && !sheet.classList.contains('min'));
+    fab.classList.toggle('hid', v);
+    if (v) setTimeout(function () { cin.focus(); }, 60);
+  }
+  fab.addEventListener('click', function () { setOpen(!open); });
+  sheet.querySelector('.sheet-x').addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (sheet.classList.contains('min')) sheet.classList.remove('min');
+    setOpen(false);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) setOpen(false); });
+
+  function bubble(text, who) {
+    var d = document.createElement('div');
+    d.className = 'msg ' + who;
+    d.textContent = text;
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+    return d;
+  }
+
+  function send(q) {
+    q = String(q || '').trim();
+    if (!q) return;
+    bubble(q, 'me');
+    cin.value = '';
+    cin.style.height = 'auto';
+    var thinking = bubble('...', 'bot pending');
+
+    csend.disabled = true;
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        question: q,
+        page: pageContext(),
+        history: history.slice(-8).map(function (m) {
+          return { role: m.who === 'me' ? 'user' : 'assistant', text: m.text };
+        })
+      })
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/'; return null; }
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      thinking.classList.remove('pending');
+      if (d.error) { thinking.textContent = d.error; return; }
+      thinking.textContent = d.answer;
+      addCopy(thinking, d.answer);
+      if (d.usedLiveData) {
+        var tag = document.createElement('span');
+        tag.className = 'live';
+        tag.textContent = 'live from JobTread';
+        thinking.appendChild(document.createElement('br'));
+        thinking.appendChild(tag);
+      }
+      history.push({ who: 'me', text: q }, { who: 'bot', text: d.answer });
+      msgs.scrollTop = msgs.scrollHeight;
+    }).catch(function (e) {
+      thinking.classList.remove('pending');
+      thinking.textContent = 'That did not come back. ' + (e && e.message ? e.message : '');
+    }).then(function () { csend.disabled = false; });
+  }
+
+  csend.addEventListener('click', function () { send(cin.value); });
+  cin.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(cin.value); }
+  });
+  cin.addEventListener('input', function () {
+    cin.style.height = 'auto';
+    cin.style.height = Math.min(cin.scrollHeight, 120) + 'px';
+  });
+
+  function askAbout(q) { setOpen(true); send(q); }
+
+  /* ---------- one tap in ---------- */
+  /* Anything on the page that points at #chat opens the sheet. The rebuild task
+     only has to write a plain link; the wiring is here and cannot go stale.
+     /#chat also lands straight in the conversation, so Ben can bookmark that. */
+
+  function openChat() { setOpen(true); }
+
+  document.querySelectorAll('a[href="#chat"], a[href$="/#chat"], [data-chat]').forEach(function (el) {
+    el.addEventListener('click', function (e) { e.preventDefault(); openChat(); });
+  });
+
+  if (location.hash === '#chat') setTimeout(openChat, 60);
+  window.addEventListener('hashchange', function () { if (location.hash === '#chat') openChat(); });
+
+  /* ---------- copy a reply ---------- */
+  /* Draft it now answers in the sheet, so he needs a way to get the words out. */
+
+  function addCopy(el, text) {
+    var b = document.createElement('button');
+    b.className = 'msg-copy';
+    b.textContent = 'Copy';
+    b.addEventListener('click', function () {
+      function ok() { b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1800); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok).catch(function () {
+          b.textContent = 'Press and hold the reply to copy';
+        });
+      } else {
+        b.textContent = 'Press and hold the reply to copy';
+      }
+    });
+    el.appendChild(document.createElement('br'));
+    el.appendChild(b);
+  }
+
+  /* ---------- done ---------- */
+  /* Marking a thing done used to open his mail app. Now it posts to /api/done,
+     which outlives the twice-daily rebuild, and the item is struck through where
+     he is standing. No second app, no round trip. */
+
+  function containerOf(el) {
+    return (el.closest && el.closest('.start, .theme, .row, .item')) || el.parentElement;
+  }
+
+  function clearItem(id, stamp) {
+    var hit = false;
+    var all = document.querySelectorAll('[data-done-id]');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-done-id') !== id) continue;
+      hit = true;
+      var box = containerOf(all[i]);
+      if (!box || box.classList.contains('cleared')) continue;
+      box.classList.add('cleared');
+      var acts = box.querySelectorAll('.acts');
+      for (var j = 0; j < acts.length; j++) acts[j].parentNode.removeChild(acts[j]);
+      var tag = document.createElement('div');
+      tag.className = 'cleared-tag';
+      tag.textContent = stamp ? 'Done ' + stamp : 'Done';
+
+      /* One handed, on a site. A mis-tap has to be recoverable. */
+      var undo = document.createElement('button');
+      undo.className = 'undo';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', function () {
+        undo.disabled = true;
+        fetch('/api/done', {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok) { location.reload(); return; }
+          undo.disabled = false;
+          undo.textContent = 'Could not undo';
+        }).catch(function () { undo.disabled = false; undo.textContent = 'Could not undo'; });
+      });
+      tag.appendChild(document.createTextNode(' '));
+      tag.appendChild(undo);
+      box.appendChild(tag);
+    }
+    return hit;
+  }
+
+  function shortDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString('en-CA', { day: 'numeric', month: 'short' });
+  }
+
+  function markDone(btn, text) {
+    var label = text.split('\n')[0].trim();
+    var id = btn.getAttribute('data-done-id') || label;
+    var was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Recording';
+
+    fetch('/api/done', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: id, label: label, note: text })
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/'; return null; }
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      if (d.error) throw new Error(d.error);
+      if (!clearItem(id, shortDate(d.cleared && d.cleared.at))) {
+        btn.textContent = 'Done';
+      }
+    }).catch(function (e) {
+      /* Never a silent failure. If it did not record, say so where he is looking. */
+      btn.disabled = false;
+      btn.textContent = was;
+      setOpen(true);
+      bubble('That did not record, so I have left it on the page rather than pretend. '
+        + (e && e.message ? e.message : ''), 'bot');
+    });
+  }
+
+  /* Seed from the server. site.js reads the cleared store on every request, so an
+     item cleared this morning stays cleared through the afternoon rebuild. */
+  (function () {
+    var seeded = window.__NUVO_CLEARED__;
+    if (!seeded || !seeded.length) return;
+    for (var i = 0; i < seeded.length; i++) clearItem(seeded[i].id, shortDate(seeded[i].at));
+  })();
+
+
+
+  /* ---------- minimise ---------- */
+
+  var minBtn = sheet.querySelector('.sheet-min');
+  var head   = sheet.querySelector('.sheet-head');
+  var minned = false;
+
+  function setMin(v) {
+    minned = v;
+    sheet.classList.toggle('min', v);
+    minBtn.innerHTML = v ? '&#9650;' : '&minus;';
+    minBtn.setAttribute('aria-label', v ? 'Expand' : 'Minimise');
+    document.body.classList.toggle('sheet-open', open && !v);
+    if (!v) setTimeout(function () { cin.focus(); msgs.scrollTop = msgs.scrollHeight; }, 60);
+  }
+  minBtn.addEventListener('click', function (e) { e.stopPropagation(); setMin(!minned); });
+  head.addEventListener('click', function () { if (minned) setMin(false); });
+
+  /* ---------- resize ---------- */
+
+  var grip = sheet.querySelector('.sheet-grip');
+  var dragging = false, startY = 0, startH = 0;
+
+  function sheetH() { return sheet.getBoundingClientRect().height; }
+  function setH(px) {
+    var min = 220, max = window.innerHeight - 40;
+    sheet.style.maxHeight = 'none';
+    sheet.style.height = Math.max(min, Math.min(max, px)) + 'px';
+  }
+
+  grip.addEventListener('pointerdown', function (e) {
+    dragging = true; startY = e.clientY; startH = sheetH();
+    sheet.classList.add('resizing');
+    grip.setPointerCapture(e.pointerId);
+  });
+  grip.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    setH(startH + (startY - e.clientY));
+  });
+  grip.addEventListener('pointerup', function () {
+    dragging = false; sheet.classList.remove('resizing');
+  });
+  grip.addEventListener('pointercancel', function () {
+    dragging = false; sheet.classList.remove('resizing');
+  });
+  /* double tap the grip to snap between tall and short */
+  grip.addEventListener('dblclick', function () {
+    setH(sheetH() > window.innerHeight * 0.6 ? window.innerHeight * 0.42 : window.innerHeight * 0.88);
+  });
+
+  /* ---------- dictation ---------- */
+
+  var mic = sheet.querySelector('#cmic');
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = null, listening = false, baseText = '';
+
+  if (!SR) {
+    mic.classList.add('off');
+    mic.addEventListener('click', function () {
+      var h = sheet.querySelector('.sheet-hint');
+      if (!h) {
+        h = document.createElement('div');
+        h.className = 'sheet-hint';
+        sheet.insertBefore(h, sheet.querySelector('.sheet-foot'));
+      }
+      h.textContent = 'Dictation is not available in this window. Tap the box, then the microphone on your Samsung keyboard, and talk.';
+    });
+  } else {
+    mic.addEventListener('click', function () {
+      if (listening) { try { rec.stop(); } catch (e) {} return; }
+      rec = new SR();
+      rec.lang = 'en-CA';
+      rec.continuous = true;
+      rec.interimResults = true;
+      baseText = cin.value ? cin.value.replace(/\s*$/, '') + ' ' : '';
+      rec.onstart = function () { listening = true; mic.classList.add('rec'); };
+      rec.onresult = function (ev) {
+        var out = '';
+        for (var i = ev.resultIndex; i < ev.results.length; i++) out += ev.results[i][0].transcript;
+        cin.value = baseText + out;
+        cin.style.height = 'auto';
+        cin.style.height = Math.min(cin.scrollHeight, 120) + 'px';
+        if (ev.results[ev.results.length - 1].isFinal) baseText = cin.value + ' ';
+      };
+      rec.onerror = function (ev) {
+        listening = false; mic.classList.remove('rec');
+        var h = sheet.querySelector('.sheet-hint');
+        if (!h) {
+          h = document.createElement('div');
+          h.className = 'sheet-hint';
+          sheet.insertBefore(h, sheet.querySelector('.sheet-foot'));
+        }
+        h.textContent = ev.error === 'not-allowed'
+          ? 'Microphone blocked. Allow it for this window, or use the mic on your keyboard.'
+          : 'Dictation stopped. Use the mic on your keyboard instead.';
+      };
+      rec.onend = function () { listening = false; mic.classList.remove('rec'); };
+      try { rec.start(); } catch (e) { listening = false; mic.classList.remove('rec'); }
+    });
+  }
+
+  /* stop dictating when a message is sent */
+  var _send = send;
+  send = function (q) { if (listening) { try { rec.stop(); } catch (e) {} } return _send(q); };
+
+  /* ---------- page buttons ---------- */
+
+  function load(text) {
+    var t = String(text).replace(/\\n/g, '\n');
+    // No composer on the page? Then the chat sheet is the composer.
+    if (!box || !ask) {
+      setOpen(true);
+      cin.value = t;
+      cin.style.height = 'auto';
+      cin.style.height = Math.min(cin.scrollHeight, 120) + 'px';
+      setTimeout(function () { cin.focus(); cin.setSelectionRange(t.length, t.length); }, 80);
+      return;
+    }
+    box.value = t;
+    ask.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function () { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }, 350);
+  }
+
+  /* One entry point. ASK asks, DRAFT drafts, DONE records, all of it in the sheet.
+     Nothing here opens a mail app any more. */
+  document.querySelectorAll('button[data-q], a[data-q]:not(.mailact)').forEach(function (b) {
+    b.addEventListener('click', function (ev) {
+      if (b.tagName === 'A') ev.preventDefault();
+      var q = b.getAttribute('data-q').replace(/\\n/g, '\n');
+      if (/^ASK /.test(q)) {
+        askAbout(q.replace(/^ASK /, ''));
+      } else if (/^DRAFT /.test(q)) {
+        askAbout(q.replace(/^DRAFT /, '') +
+          '\n\nWrite it in my voice. Plain text I can paste straight into an email. ' +
+          'No preamble and no subject line unless I asked for one, just the message.');
+      } else if (/^DONE /.test(q)) {
+        markDone(b, q.replace(/^DONE /, ''));
+      } else {
+        load(q);
+      }
+    });
+  });
+
+  document.querySelectorAll('a.mailact').forEach(function (a) {
+    a.addEventListener('click', function () {
+      var t = Date.now();
+      setTimeout(function () {
+        if (!document.hidden && Date.now() - t < 1500) {
+          load(a.getAttribute('data-q'));
+          var hEl = document.getElementById('hint');
+          if (hEl) hEl.textContent =
+            'Your mail app did not open here. Copy this and paste it to me instead.';
+        }
+      }, 700);
+    });
+  });
+
+  /* Ask about this, on every theme and every row */
+  function attach(el, title, body, tail) {
+    if (!title.trim()) return;
+    var b = document.createElement('button');
+    b.className = 'act themeask';
+    b.textContent = 'Ask about this';
+    b.addEventListener('click', function () {
+      askAbout(title.trim() + '\n\n' + body.trim() + '\n' + (tail || '').trim() +
+        '\n\nWhat do I actually do about this? One recommendation, who owns it, what done looks like. No recurring task on me.');
+    });
+    var h = document.createElement('div');
+    h.className = 'acts';
+    h.appendChild(b);
+    el.appendChild(h);
+  }
+
+  document.querySelectorAll('.theme').forEach(function (th) {
+    var h = th.querySelector('.h');
+    if (!h) return;
+    attach(th, h.textContent.replace(/^\s*Good\s*/i, ''),
+      (th.querySelector('.b') || {}).textContent || '',
+      (th.querySelector('.mg') || {}).textContent || '');
+  });
+
+  document.querySelectorAll('.row').forEach(function (r) {
+    if (r.querySelector('.acts')) return;
+    attach(r, (r.querySelector('.rt') || {}).textContent || '',
+      (r.querySelector('.rm') || {}).textContent || '', '');
+  });
+
+  /* ---------- composer ---------- */
+
+  var ansBtn = document.getElementById('answer');
+  var copy   = document.getElementById('copy');
+  var hint   = document.getElementById('hint');
+
+  function setHint(t) { if (hint) hint.textContent = t; }
+
+  if (ansBtn && box) ansBtn.addEventListener('click', function () {
+    if (!box.value.trim()) { box.focus(); return; }
+    askAbout(box.value.trim());
+  });
+
+  if (copy && box) copy.addEventListener('click', function () {
+    var t = box.value.trim();
+    if (!t) { box.focus(); return; }
+    function ok() {
+      copy.textContent = 'Copied';
+      copy.disabled = true;
+      setHint('Now paste it into our chat.');
+      setTimeout(function () {
+        copy.textContent = 'Copy question'; copy.disabled = false;
+        setHint('Ask answers here, and pulls live JobTread figures when the question needs them.');
+      }, 2600);
+    }
+    function manual() {
+      box.focus(); box.select();
+      setHint('Selected. Hold and choose Copy, then paste it into our chat.');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(ok).catch(function () {
+        try { box.select(); document.execCommand('copy') ? ok() : manual(); } catch (e) { manual(); }
+      });
+    } else {
+      try { box.select(); document.execCommand('copy') ? ok() : manual(); } catch (e) { manual(); }
+    }
+  });
+})();
+</script>

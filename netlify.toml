@@ -1,0 +1,17 @@
+# Nuvo Command Centre
+# Nothing is served statically. The page itself comes from a function so it can
+# check the session first. That is the whole point of the login.
+#
+# command-centre.html is the dashboard, rebuilt in place by the twice-daily
+# refresh task. chat-widget.html is the chat, injected by the site function, so
+# the refresh task never has to rebuild the chat and cannot break it.
+
+[build]
+  publish = "static"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[functions.site]
+  included_files = ["command-centre.html", "netlify/functions/chat-widget.html"]
