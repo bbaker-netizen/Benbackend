@@ -131,3 +131,97 @@ Everything downstream then proceeds unattended in one session:
 Per the force-fire finding in `trigger-audit-2026-09-02.md`: once the trigger is
 rewired, a force-fired run does **not** prove it works. Only an observed
 scheduled run does. Budget for that before calling this done.
+
+---
+
+# Follow-on requirement: make the in-app chat the single entry point
+
+Added 2 September 2026, after the status above. **Not started — it is queued
+behind the same token blocker.** What follows is what could be established
+without a working token, and one architectural risk that should be settled
+before any of it is built.
+
+## The requirement
+
+1. Confirm what the in-app chat on `nuvo-command-centre` can actually do.
+2. Specifically: does `DONE <id>` typed into the in-app chat close the matching
+   item in `claude/commitments-ledger.md` the same way pasting it into Claude
+   does? Do `DRAFT` and `ASK` work there?
+3. If not, make the in-app chat the single entry point, so there is no copy and
+   paste.
+4. Report back two lines: what the chat can do, and what it cannot.
+
+## What could not be determined, and why
+
+Neither question can be answered from this session. Two independent blocks:
+
+- **The `chat` function's source is unreadable.** It is inside the deploy source
+  zip that needs a valid Netlify token to retrieve. Same blocker as above.
+- **The live endpoint cannot be exercised.** `/api/chat` sits behind the `_auth`
+  gate. Verified this session:
+
+```
+GET  /api/chat                    -> 401 {"error":"Not signed in"}
+POST /api/chat  {"message":"..."} -> 401 {"error":"Not signed in"}
+```
+
+  Testing it live needs the site password, which this session does not have.
+
+So the honest state of the answer is: **unknown.** Nothing here should be read
+as evidence that `DONE`, `DRAFT` or `ASK` do or do not work in the in-app chat.
+
+## The architectural risk — settle this before building
+
+**Fact.** `claude/commitments-ledger.md` does not exist in this git repository.
+Checked every ref and the full history of both branches: the only files that
+have ever existed here are `claude/trigger-audit-2026-09-02.md` and this file.
+The ledger appears in this repo only as a *mention* inside the trigger audit.
+
+**Fact (carried from `trigger-audit-2026-09-02.md`, not independently verified
+this session).** The ledger is a Claude **project document** in project
+`019f7597-cf0e-75f1-a96b-d7088d8add17`, reached with `project_read` /
+`project_write`.
+
+**Fact.** This session has no `project_read` / `project_write` tools.
+
+**Inference, and the risk.** A Netlify serverless function cannot call Claude
+project tools — those are Claude-side, not a public API. So if the ledger's
+source of truth really is a Claude project document, the `chat` function has no
+route to it, and "wire the chat up to close ledger items" is not a small
+wiring job. It requires one of:
+
+- **A. Move the ledger's source of truth into this git repository.** The `chat`
+  function then reads and writes it through the GitHub API with a scoped token.
+  Durable, versioned, gives every close a commit and an audit trail. Costs a
+  migration and means the Claude project document stops being authoritative —
+  two copies is the failure mode to avoid.
+- **B. Have the chat relay into a Claude session** that holds the project tools.
+  Keeps the ledger where it is, but adds a moving part and inherits the
+  unattended-permission problem documented in the trigger audit — the same gate
+  that has stopped every scheduled run since 25 July.
+- **C. Leave the ledger where it is and accept the copy and paste.** Rejected by
+  the requirement, but it is the honest baseline the other two are measured
+  against.
+
+**This is Ben's decision, not an implementation detail.** It changes where the
+ledger lives and what "done" means. It should be settled before the chat is
+touched, because A and B are different builds, not different settings.
+
+**Caveat on all of the above.** The `chat` function's source has never been
+read. It is possible it already carries a write path to the ledger, or that the
+ledger is mirrored somewhere not yet found. The first thing the unblocked run
+should do is read that function, then re-test this section against it rather
+than trusting it.
+
+## Order of work once a valid token exists
+
+1. Everything in "To unblock" above, through the deploy and verification.
+2. Read the `chat` function source from the recovered zip. Establish what verbs
+   it actually implements, and whether it has any write path to the ledger.
+3. Re-test the risk section above against that source. If the ledger really is
+   unreachable from the function, put options A and B to Ben and stop — do not
+   pick one unilaterally.
+4. Only once the ledger's home is settled: implement `DONE <id>`, `DRAFT` and
+   `ASK` in the in-app chat, and verify each end to end against a real ledger
+   item rather than by inspection.
+5. Report the two lines: what the chat can do, and what it cannot.
