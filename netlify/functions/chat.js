@@ -5,7 +5,7 @@ const API = 'https://api.anthropic.com/v1/messages';
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
 const MAX_TOOL_ROUNDS = 5;
 
-const SYSTEM = `You are Ben Pond's assistant. Ben is Director of Nuvo Construction, a
+const SYSTEM_BASE = `You are Ben Pond's assistant. Ben is Director of Nuvo Construction, a
 residential renovation and custom build company in St Albert, Alberta. He is usually
 standing on a site reading this on a phone.
 
@@ -26,6 +26,41 @@ guess at numbers you could look up.
 
 You cannot send email, post anything, or change anything. If he asks you to, say so in
 one line and offer to draft the text instead.`;
+
+// Pave needs the organization id on nearly every query. Look it up once per cold
+// start and hand it to the model, rather than spending two of its five tool
+// rounds rediscovering it every time Ben asks a question.
+let orgIdCache;
+
+async function organizationId() {
+  if (orgIdCache !== undefined) return orgIdCache;
+  try {
+    const r = await runJobTreadQuery({ currentGrant: { organization: { id: {} } } });
+    orgIdCache = (r && r.currentGrant && r.currentGrant.organization && r.currentGrant.organization.id) || null;
+  } catch (e) {
+    orgIdCache = null;
+  }
+  return orgIdCache;
+}
+
+function systemPrompt(orgId) {
+  if (!orgId) return SYSTEM_BASE;
+  return SYSTEM_BASE + `
+
+Nuvo's JobTread organization id is ${orgId}. Use it. Do not go looking for it.
+
+Pave is a JSON graph API. Select a scalar with an empty object, put arguments
+under "$", and alias a field to a schema type with "_". A query looks like:
+
+{ "organization": { "$": { "id": "${orgId}" }, "jobs": { "count": {} } } }
+
+{ "organization": { "$": { "id": "${orgId}" },
+  "openJobs": { "_": "jobs", "$": { "where": ["closedOn", "=", null] }, "count": {} } } }
+
+Ask for counts and sums rather than pulling rows you then have to add up, and
+keep the field list short. A 413 means the query cost too much, not that it was
+too long.`;
+}
 
 const TOOLS = [
   {
@@ -49,7 +84,7 @@ const TOOLS = [
   }
 ];
 
-async function callAnthropic(messages, useTools) {
+async function callAnthropic(messages, useTools, system) {
   const res = await fetch(API, {
     method: 'POST',
     headers: {
@@ -60,7 +95,7 @@ async function callAnthropic(messages, useTools) {
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1400,
-      system: SYSTEM,
+      system,
       messages,
       ...(useTools ? { tools: TOOLS } : {})
     })
@@ -115,9 +150,11 @@ export default async (request) => {
 
   const hasJobTread = Boolean(process.env.JOBTREAD_GRANT_KEY);
   const used = [];
+  const toolErrors = [];
 
   try {
-    let reply = await callAnthropic(messages, hasJobTread);
+    const system = systemPrompt(hasJobTread ? await organizationId() : null);
+    let reply = await callAnthropic(messages, hasJobTread, system);
 
     for (let round = 0; round < MAX_TOOL_ROUNDS && reply.stop_reason === 'tool_use'; round++) {
       const calls = (reply.content || []).filter((b) => b.type === 'tool_use');
@@ -129,8 +166,10 @@ export default async (request) => {
         try {
           out = await runJobTreadQuery(call.input?.query || {});
           used.push('JobTread');
+          if (out && out.error) toolErrors.push(String(out.error));
         } catch (e) {
           out = { error: String(e.message || e) };
+          toolErrors.push(out.error);
         }
         results.push({
           type: 'tool_result',
@@ -139,13 +178,38 @@ export default async (request) => {
         });
       }
 
+      // Last round. Feed the results back with the tools taken away, so the model
+      // has to answer in words. Otherwise it keeps reaching for the tool, the loop
+      // ends on a tool call carrying no text, and Ben gets a blank.
+      const lastRound = round === MAX_TOOL_ROUNDS - 1;
+      if (lastRound) {
+        messages.push({
+          role: 'user',
+          content: results.concat([{
+            type: 'text',
+            text: 'That is all the looking up you get. Answer now with what you have. ' +
+                  'If you could not get the figure, say so plainly in one line and say why.'
+          }])
+        });
+        reply = await callAnthropic(messages, false, system);
+        break;
+      }
+
       messages.push({ role: 'user', content: results });
-      reply = await callAnthropic(messages, hasJobTread);
+      reply = await callAnthropic(messages, hasJobTread, system);
     }
 
-    const answer = textOf(reply);
+    let answer = textOf(reply);
+    if (!answer) {
+      // Never a blank. Say what went wrong, because a silent failure is the one
+      // thing that stops him trusting the page.
+      answer = toolErrors.length
+        ? 'I could not get that out of JobTread. ' + toolErrors[toolErrors.length - 1]
+        : 'No answer came back. Try asking that a different way.';
+    }
+
     return json({
-      answer: answer || 'No answer came back. Try asking that a different way.',
+      answer,
       usedLiveData: used.length > 0
     });
   } catch (e) {
