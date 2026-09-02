@@ -3,8 +3,13 @@
 One weekday email, 7am, replacing five. Set up 2 September 2026.
 
 Trigger `trig_01LUzt5FNsedLsWm5raGk3NV`, cron `0 13 * * 1-5` UTC, which is 7am
-Mountain while it is MDT. It needs adding to the November clock-change trigger
-`trig_01FE4JGxKLzJhLbTWdHzxmkx` or it will arrive at 6am all winter.
+Mountain while it is MDT.
+
+The November clock-change trigger `trig_01FE4JGxKLzJhLbTWdHzxmkx` has been updated
+to include it (becomes `0 14 * * 1-5` on 2 November), and told not to skip it on
+the strength of its old OLD-prefixed name. That trigger was also told to work from
+what `list_triggers` actually returns rather than trusting its own list, because
+the account changed a lot on 2 September and a hardcoded list will rot.
 
 ## Why
 
