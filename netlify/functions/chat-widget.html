@@ -124,6 +124,11 @@
   .cleared-tag .undo { font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .12em;
     text-transform: uppercase; cursor: pointer; background: none; border: none;
     color: var(--ink-muted, #928d8a); text-decoration: underline; padding: 0 0 0 6px; }
+  .snoozepick { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: 6px; }
+  .act.snoozeopt { background: var(--offwhite, #f0ede8); border-style: solid; font-size: 11px; padding: 6px 11px; }
+  .snoozedate { font: inherit; font-size: 11px; padding: 5px 8px; border-radius: 50px;
+    border: 1px solid var(--border, rgba(20,63,92,0.12)); background: var(--surface-1, #fff);
+    color: var(--ink-1, #454242); }
   .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
     margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
     color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
@@ -380,6 +385,91 @@
     });
   }
 
+  /* ---------- snooze ---------- */
+  /* Not defer-and-nag. The item goes, with no count and no greyed row, and comes
+     back in The One Thing on the morning it is due. */
+
+  function hideItem(id) {
+    var all = document.querySelectorAll('[data-done-id]');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-done-id') !== id) continue;
+      var box = containerOf(all[i]);
+      if (box && box.parentNode) box.parentNode.removeChild(box);
+    }
+  }
+
+  function ymd(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  function sendSnooze(btn, id, label, until) {
+    fetch('/api/done', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: id, label: label, until: until })
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/'; return null; }
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      if (d.error) throw new Error(d.error);
+      hideItem(id);
+    }).catch(function (e) {
+      btn.disabled = false;
+      btn.textContent = 'Snooze';
+      setOpen(true);
+      bubble('That did not snooze, so I have left it on the page rather than pretend. '
+        + (e && e.message ? e.message : ''), 'bot');
+    });
+  }
+
+  /* One tap on a site, so presets first and a date picker only if he wants one. */
+  function openSnooze(btn, id, label) {
+    var existing = btn.parentNode.querySelector('.snoozepick');
+    if (existing) { existing.parentNode.removeChild(existing); return; }
+
+    var wrap = document.createElement('span');
+    wrap.className = 'snoozepick';
+
+    var t = new Date(); t.setDate(t.getDate() + 1);
+    var w = new Date(); w.setDate(w.getDate() + (((8 - w.getDay()) % 7) || 7));
+    var m = new Date(); m.setMonth(m.getMonth() + 1);
+
+    [['Tomorrow', ymd(t)], ['Monday', ymd(w)], ['A month', ymd(m)]].forEach(function (o) {
+      var b = document.createElement('button');
+      b.className = 'act snoozeopt';
+      b.textContent = o[0];
+      b.addEventListener('click', function () {
+        btn.disabled = true; btn.textContent = 'Snoozing';
+        sendSnooze(btn, id, label, o[1]);
+      });
+      wrap.appendChild(b);
+    });
+
+    var pick = document.createElement('input');
+    pick.type = 'date';
+    pick.className = 'snoozedate';
+    pick.min = ymd(t);
+    pick.addEventListener('change', function () {
+      if (!pick.value) return;
+      btn.disabled = true; btn.textContent = 'Snoozing';
+      sendSnooze(btn, id, label, pick.value);
+    });
+    wrap.appendChild(pick);
+
+    btn.parentNode.insertBefore(wrap, btn.nextSibling);
+  }
+
+  /* Anything the server already told us is snoozed, take straight out. The CSS in
+     the head has hidden it already; this is for browsers without :has(). */
+  (function () {
+    var hidden = window.__NUVO_HIDDEN__;
+    if (!hidden || !hidden.length) return;
+    for (var i = 0; i < hidden.length; i++) hideItem(hidden[i]);
+  })();
+
   /* Seed from the server. site.js reads the cleared store on every request, so an
      item cleared this morning stays cleared through the afternoon rebuild. */
   (function () {
@@ -526,6 +616,10 @@
           'No preamble and no subject line unless I asked for one, just the message.');
       } else if (/^DONE /.test(q)) {
         markDone(b, q.replace(/^DONE /, ''));
+      } else if (/^SNOOZE /.test(q)) {
+        var st = q.replace(/^SNOOZE /, '');
+        var sl = st.split('\n')[0].trim();
+        openSnooze(b, b.getAttribute('data-done-id') || sl, sl);
       } else {
         load(q);
       }
@@ -546,35 +640,10 @@
     });
   });
 
-  /* Ask about this, on every theme and every row */
-  function attach(el, title, body, tail) {
-    if (!title.trim()) return;
-    var b = document.createElement('button');
-    b.className = 'act themeask';
-    b.textContent = 'Ask about this';
-    b.addEventListener('click', function () {
-      askAbout(title.trim() + '\n\n' + body.trim() + '\n' + (tail || '').trim() +
-        '\n\nWhat do I actually do about this? One recommendation, who owns it, what done looks like. No recurring task on me.');
-    });
-    var h = document.createElement('div');
-    h.className = 'acts';
-    h.appendChild(b);
-    el.appendChild(h);
-  }
-
-  document.querySelectorAll('.theme').forEach(function (th) {
-    var h = th.querySelector('.h');
-    if (!h) return;
-    attach(th, h.textContent.replace(/^\s*Good\s*/i, ''),
-      (th.querySelector('.b') || {}).textContent || '',
-      (th.querySelector('.mg') || {}).textContent || '');
-  });
-
-  document.querySelectorAll('.row').forEach(function (r) {
-    if (r.querySelector('.acts')) return;
-    attach(r, (r.querySelector('.rt') || {}).textContent || '',
-      (r.querySelector('.rm') || {}).textContent || '', '');
-  });
+  /* The generic "Ask about this" button was removed on 2 September 2026. It was
+     the same on every item and it taught Ben nothing. The page now writes two or
+     three specific actions per item, drawn from that item and from
+     claude/lessons.md. See that file before changing this. */
 
   /* ---------- composer ---------- */
 

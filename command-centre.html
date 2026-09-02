@@ -168,6 +168,11 @@
   .staleflag { border-left: 3px solid var(--critical); background: var(--offwhite);
     padding: 12px 14px; margin: 12px 0 4px; font-size: 13px; line-height: 1.5;
     color: var(--ink-1); border-radius: 0 8px 8px 0; }
+  /* The strategic read. One paragraph, deliberately not a panel, so it reads as
+     someone talking rather than as another box to process. */
+  .strategic { font-size: 15px; line-height: 1.6; color: var(--ink-1); margin: 16px 0 4px;
+    padding-left: 13px; border-left: 3px solid var(--navy); }
+  .strategic b { font-weight: 700; }
   .foot { margin-top: 30px; font-size: 12px; color: var(--ink-muted); line-height: 1.6; }
 </style>
 </head>
@@ -185,14 +190,18 @@
   <p class="chatline"><a href="https://nuvo-command-centre.netlify.app/#chat">Ask, with live JobTread</a> &middot; it reads this page and goes and looks up anything that is not on it.</p>
 </header>
 
+<p class="strategic">The capacity risk flagged on 1 August has arrived. Dustin does not want to stay a site superintendent, and his reason is hours, not money. Two supers carrying 32 sites was called a single point of failure a month ago and it has now failed in the ordinary way, by someone getting tired. What makes today different is that the fix is already sitting on your desk: two interview verdicts for the Working Site Super role have been waiting in Indeed since this morning. And your paid search has been dark for a month, so the new work that would normally be piling up is not. <b>That is the window. Answer the two candidates today, while it is quiet enough to onboard someone properly.</b></p>
+
 <div class="start">
   <div class="kicker"><svg class="kicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V4h9l.6 2H20v9h-6.4l-.6-2H6v8z"/></svg>Start here</div>
   <div class="t">The All Weather contract is sitting unsigned</div>
-  <div class="m">Mike Lieske sent the Supply Only contract through DocuSign at 10:05 this morning, right after you told him to go ahead. It has not been signed. On Monday you forwarded his quote to Sheena saying you wanted to cross reference it against what you sent him before approving. Then you approved at 3:51am Tuesday. Worth checking that cross reference actually happened before you sign, because signing is the point where it stops being reversible.</div>
+  <div class="m">Mike Lieske sent the Supply Only contract through DocuSign at 10:05 this morning, right after you told him to go ahead. It has not been signed. On Monday you forwarded his quote to Sheena saying you wanted to cross reference it against what you sent him before approving. Then you approved at 3:51am Tuesday. Signing is where it stops being reversible, so do the check first.</div>
   <div class="who">Sent 10:05 today &middot; he is waiting on your signature</div>
   <div class="acts">
-    <button class="act act-go" data-q="DONE all-weather-docusign\n\nSigned the All Weather At Home supply contract." data-done-id="all-weather-docusign">Mark done</button>
-    <button class="act" data-q="ASK all weather contract\n\nPull the All Weather At Home thread. What did I send Mike, what did he send back, and what should I be checking before I sign the DocuSign?">Check it first</button>
+    <button class="act act-go" data-q="ASK cross reference the All Weather contract\n\nPull the All Weather At Home thread. Line up what I sent Mike against what he has sent back in the DocuSign, and tell me anything that does not match. I want the differences, not a summary.">Check it against my quote</button>
+    <button class="act" data-q="DRAFT ask Sheena to look before I sign\n\nDraft a short note to Sheena asking her to look over the All Weather contract tonight before I sign it, since we said we would cross reference it together.">Ask Sheena first</button>
+    <button class="act" data-q="DONE all-weather-docusign\n\nSigned the All Weather At Home supply contract." data-done-id="all-weather-docusign">Done</button>
+    <button class="act" data-q="SNOOZE all-weather-docusign" data-done-id="all-weather-docusign">Snooze</button>
   </div>
 </div>
 
@@ -200,57 +209,72 @@
 
 <div class="row">
   <div class="rt">Two interview verdicts are sitting in Indeed</div>
-  <div class="rm">Alexander Brown, interviewed 9am today with Bruce. Mark Lomond. Indeed has asked you twice today whether to move them forward. This is the Working Site Super role, and it just became urgent for a different reason. Two minutes each.</div>
+  <div class="rm">Alexander Brown, interviewed 9am today with Bruce. Mark Lomond. Indeed has asked you twice today whether to move them forward. Two minutes each, and per the read above this is the one that actually matters.</div>
   <div class="acts">
-    <button class="act act-go" data-q="DONE indeed-verdicts\n\nGave my verdict on Alexander Brown and Mark Lomond." data-done-id="indeed-verdicts">Mark done</button>
+    <button class="act act-go" data-q="ASK brief me on both candidates\n\nPull what we have on Alexander Brown and Mark Lomond for the Working Site Super role, including anything in the interview notes or Plaud recordings, and tell me what I should be weighing between them.">Brief me on both</button>
+    <button class="act" data-q="DRAFT move Alexander forward\n\nDraft a short note moving Alexander Brown to the next stage, warm and specific, in my voice.">Draft the yes</button>
+    <button class="act" data-q="DONE indeed-verdicts\n\nGave my verdict on Alexander Brown and Mark Lomond." data-done-id="indeed-verdicts">Done</button>
+    <button class="act" data-q="SNOOZE indeed-verdicts" data-done-id="indeed-verdicts">Snooze</button>
   </div>
 </div>
 
 <div class="row">
   <div class="rt">Dustin does not want to stay a site superintendent</div>
-  <div class="rm">Your own notes from Monday: the hours are too much, before 7 until 5:30 or 6 most days, projects not ready. You have the discussion booked with Kirk, Dustin and Conrad, and all three accepted. Nothing needed today. It is here because it is the single biggest thing in the business right now and it should not drop off the page.</div>
+  <div class="rm">Your own notes from Monday. The hours are too much, before 7 until 5:30 or 6 most days, projects not ready when he gets there. The discussion is booked with Kirk, Dustin and Conrad and all three accepted. Nothing needed today, but it does not leave this page.</div>
+  <div class="acts">
+    <button class="act act-go" data-q="ASK prep me for the Dustin conversation\n\nRead my 1 September notes with Dustin. What is he actually asking for, what would it cost to give him, and what do I need to have decided before I walk into that room? One recommendation, not a menu.">Prep me for the room</button>
+    <button class="act" data-q="ASK what breaks if Dustin goes\n\nIf Dustin steps back from site super, what breaks first and which jobs are exposed? Pull the live JobTread picture.">What breaks if he goes</button>
+    <button class="act" data-q="DONE dustin-super-conversation\n\nHad the conversation with Dustin." data-done-id="dustin-super-conversation">Done</button>
+    <button class="act" data-q="SNOOZE dustin-super-conversation" data-done-id="dustin-super-conversation">Snooze</button>
+  </div>
 </div>
 
 <div class="row">
   <div class="rt">Ellie is waiting on your read of the SEO report</div>
-  <div class="rm">Revised August report sent 9:53 this morning, with the data that could not be pulled Monday and a changed layout. She asked for your thoughts. Two minute reply.</div>
+  <div class="rm">Revised August report sent 9:53 this morning, with the data that could not be pulled Monday and a changed layout. She asked for your thoughts. Two minute reply, clear it standing up.</div>
   <div class="acts">
-    <button class="act" data-q="DRAFT reply to Ellie on the SEO report\n\nDraft my reply to Ellie on the revised August SEO report. Short, appreciative, and ask for the one number I should be watching month to month.">Draft it</button>
-    <button class="act act-go" data-q="DONE ellie-seo-report\n\nReplied to Ellie on the August SEO report." data-done-id="ellie-seo-report">Mark done</button>
+    <button class="act act-go" data-q="DRAFT reply to Ellie on the SEO report\n\nDraft my reply to Ellie on the revised August SEO report. Short, appreciative, and ask for the one number I should be watching month to month rather than the whole report.">Draft the reply</button>
+    <button class="act" data-q="ASK does the SEO report match my own numbers\n\nEllie's August SEO report against what Google Analytics actually says for the same month. Do they agree? Flag anything that does not.">Check it against Analytics</button>
+    <button class="act" data-q="DONE ellie-seo-report\n\nReplied to Ellie on the August SEO report." data-done-id="ellie-seo-report">Done</button>
+    <button class="act" data-q="SNOOZE ellie-seo-report" data-done-id="ellie-seo-report">Snooze</button>
+  </div>
+</div>
+
+<div class="row">
+  <div class="rt">Your Google ads have been dark for a month</div>
+  <div class="rm">Spend fell from $2,990 in 30 days to $177.32. A Google rep emailed you on 31 August with the subject "Ads Not Showing Over most of the Time" and you forwarded it to Bruce that night with no date on it. Same problem, two ends.</div>
+  <div class="acts">
+    <button class="act act-go" data-q="DRAFT chase Bruce on the Google ads\n\nDraft a short note to Bruce asking where he got to on the Google ads not showing. Friendly, but name a day I want an answer by.">Chase Bruce, with a date</button>
+    <button class="act" data-q="ASK what a month of dark ads cost me\n\nWork out roughly what a month of near zero paid search has cost in leads, using the lead source split and what the channel was delivering before it stopped.">What has it cost</button>
+    <button class="act" data-q="DONE google-ads-dark\n\nGoogle ads issue resolved." data-done-id="google-ads-dark">Done</button>
+    <button class="act" data-q="SNOOZE google-ads-dark" data-done-id="google-ads-dark">Snooze</button>
   </div>
 </div>
 
 <div class="row">
   <div class="rt">One social draft is waiting in Buffer</div>
-  <div class="rm">Approving it in Buffer is what posts it. Nothing goes live until you do. No blog draft this week, because there was no job note.</div>
+  <div class="rm">Approving it in Buffer is what posts it. Nothing goes live until you do. No blog draft this week, because there was no job note on the Plaud.</div>
   <div class="acts">
-    <button class="act" data-q="ASK the waiting social draft\n\nWhat is the social draft sitting in Buffer, and is it worth posting?">What is it</button>
+    <button class="act act-go" data-q="ASK read me the waiting social draft\n\nWhat is the social draft sitting in Buffer? Read it to me and tell me straight whether it is worth posting or should be cut.">Read it to me</button>
+    <button class="act" data-q="DONE buffer-draft-sept\n\nCleared the Buffer draft." data-done-id="buffer-draft-sept">Done</button>
+    <button class="act" data-q="SNOOZE buffer-draft-sept" data-done-id="buffer-draft-sept">Snooze</button>
   </div>
 </div>
 
 <div class="row">
   <div class="rt">Renegade have confirmed the invoice is right</div>
-  <div class="rm">You asked whether invoice 22563 was for 34 Belmont Drive. Ashley confirmed this morning that it already says so, below the dump fee. Nothing to correct. Close it off.</div>
+  <div class="rm">You asked whether invoice 22563 was for 34 Belmont Drive. Ashley confirmed this morning it already says so, below the dump fee. Nothing to correct.</div>
   <div class="acts">
-    <button class="act act-go" data-q="DONE renegade-22563\n\nRenegade invoice 22563 confirmed correct, closed off." data-done-id="renegade-22563">Mark done</button>
+    <button class="act act-go" data-q="DONE renegade-22563\n\nRenegade invoice 22563 confirmed correct, closed off." data-done-id="renegade-22563">Done</button>
+    <button class="act" data-q="SNOOZE renegade-22563" data-done-id="renegade-22563">Snooze</button>
   </div>
 </div>
 
 <div class="note">Nothing else in the mailbox needs you. Katie Cochet approved change order KatieC-24 for the kitchen window, which is good news and needs nothing. Netlify says you are halfway through this month's credits, cycle ends 5 September.</div>
 
-<details open>
-  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v3a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1z"/><path d="M16 8.5a5 5 0 010 7M19 6a9 9 0 010 12"/></svg><span class="st">Marketing</span><span class="ss">Your ads stopped showing</span><span class="caret">&#9662;</span></summary>
+<details>
+  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v3a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1z"/><path d="M16 8.5a5 5 0 010 7M19 6a9 9 0 010 12"/></svg><span class="st">Marketing</span><span class="ss">Ads dark, referral quiet</span><span class="caret">&#9662;</span></summary>
   <div class="inner">
-
-    <div class="theme">
-      <div class="h">Two findings that turn out to be the same finding</div>
-      <div class="b">Google Ads spend went from $2,990 in 30 days a month ago to $177.32 now. Separately, a Google rep emailed you on 31 August with the subject "Ads Not Showing Over most of the Time". You forwarded it to Bruce that night. Those are the same problem seen from two ends.</div>
-      <div class="mg"><b>Manage this:</b> it is with Bruce. Worth one line asking him what he found, because a month of near zero spend is a month of no leads from that channel.</div>
-      <div class="acts">
-        <button class="act" data-q="DRAFT chase Bruce on the Google Ads problem\n\nDraft a short note to Bruce asking where he got to on the Google ads not showing. Friendly, no pressure, but I want to know if it is fixed.">Draft the chase</button>
-      </div>
-    </div>
-
     <div class="theme">
       <div class="h">Where the traffic actually came from</div>
       <div class="b">Analytics, 30 days to 2 September. 3,426 sessions. Paid search 1,856. Paid social 770. Organic search 356. Direct 195. Cross-network 157. Referral 60. Organic social 19.</div>
@@ -261,33 +285,38 @@
       <div class="h">770 paid social sessions, and no Facebook spend to explain them</div>
       <div class="b">Both connected Facebook ad accounts report zero spend over the same 30 days. Analytics counted 770 paid social sessions. Those two cannot both be right.</div>
       <div class="mg"><b>Manage this:</b> either somebody is running ads from an account you are not connected to, or the tagging is wrong. One question to whoever manages it.</div>
+      <div class="acts">
+        <button class="act act-go" data-q="ASK where the paid social traffic is coming from\n\nAnalytics says 770 paid social sessions in 30 days. Both Facebook ad accounts say zero spend. Work out what could explain that and tell me exactly what to ask, and who.">Work out the gap</button>
+        <button class="act" data-q="SNOOZE paid-social-mismatch" data-done-id="paid-social-mismatch">Snooze</button>
+      </div>
     </div>
 
     <div class="blocked">
       <strong>Live as of today:</strong> Google Analytics, Google Ads and Facebook Ads.<br><br>
       <strong>Semrush</strong> is connected but has no API units, so it returns nothing.<br><br>
-      <strong>Google Business Profile</strong> is connected but only exposes a personal unverified account with a redacted id, so reviews cannot be pulled. The 73 reviews figure below is still the 1 August read.<br><br>
+      <strong>Google Business Profile</strong> is connected but only exposes a personal unverified account with a redacted id, so reviews cannot be pulled.<br><br>
       <strong>Google Search Console</strong> is not available at all.
     </div>
   </div>
 </details>
 
 <details>
-  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5"/></svg><span class="st">The field</span><span class="ss">409 jobs open</span><span class="caret">&#9662;</span></summary>
+  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 20h20M4 20V9l8-5 8 5v11M9 20v-6h6v6"/><path d="M10 11h4"/></svg><span class="st">The field</span><span class="ss">409 jobs open</span><span class="caret">&#9662;</span></summary>
   <div class="inner">
     <div class="row"><div class="rt">751 jobs, 409 still open</div>
       <div class="rm">Pulled live from JobTread this evening. Denis Schutza logged Stinson-Garage this morning.</div></div>
-    <div class="note">This morning's job health run hit a fault. Its own words: JobTread's data connection faulted partway through, simple lookups worked but anything carrying daily log notes or comments did not. So the job by job risk read is thin today and you should not treat quiet as good news. The chat can pull any specific job for you right now.</div>
+    <div class="note">This morning's job health run hit a fault. Its own words: JobTread's data connection faulted partway through, simple lookups worked but anything carrying daily log notes or comments did not. The job by job risk read is thin today, so do not read quiet as good news.</div>
     <div class="acts">
-      <button class="act act-go" data-q="ASK jobs at risk right now\n\nPull JobTread and tell me which active jobs are past their date or have gone longest without a daily log. Name them and say what is actually wrong.">Which jobs are at risk</button>
+      <button class="act act-go" data-q="ASK jobs at risk right now\n\nPull JobTread and tell me which active jobs are past their date or have gone longest without a daily log. Name them and say what is actually wrong, not just that they are flagged.">Which jobs are at risk</button>
+      <button class="act" data-q="ASK which jobs is Dustin carrying\n\nWhich active jobs is Dustin superintendent on, and which of those are the ones under pressure? I need to know what moves if he steps back.">What is Dustin carrying</button>
     </div>
   </div>
 </details>
 
 <details>
-  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="st">Still true from the 1 August analysis</span><span class="ss">Not refreshed today</span><span class="caret">&#9662;</span></summary>
+  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="4" width="3" height="14"/></svg><span class="st">The 1 August analysis</span><span class="ss">Findings, not refreshed</span><span class="caret">&#9662;</span></summary>
   <div class="inner">
-    <div class="note">These came out of the 1 August deep read and are findings rather than daily figures, so they do not go stale the same way. They have not been re-checked today.</div>
+    <div class="note">These came out of the 1 August deep read. They are findings rather than daily figures, so they do not go stale the same way, but they have not been re-checked today.</div>
 
     <div class="theme">
       <div class="h">Referral is your engine</div>
@@ -304,12 +333,21 @@
       <div class="h">Your best channel is invisible</div>
       <div class="b">JobTread has no field for who referred a job. Of 102 referral leads, a name could only be found on 24, dug out of comment boxes. The other 78 are gone.</div>
       <div class="mg"><b>Manage this:</b> add a "Referred By" text field on jobs. Five minutes, and it stops the bleeding.</div>
+      <div class="acts">
+        <button class="act act-go" data-q="DONE referred-by-field\n\nAdded the Referred By field in JobTread." data-done-id="referred-by-field">Done</button>
+        <button class="act" data-q="SNOOZE referred-by-field" data-done-id="referred-by-field">Snooze</button>
+      </div>
     </div>
 
     <div class="theme">
       <div class="h">Ring Wende Black</div>
       <div class="b">Three leads sent, one won, silent eight months. The only person in your whole system who has referred more than once, and nobody has ever thanked her. Christine Engley is second.</div>
       <div class="mg"><b>Manage this:</b> six more have gone quiet after sending real work. Phone calls, not admin.</div>
+      <div class="acts">
+        <button class="act act-go" data-q="DRAFT what to say to Wende\n\nI am ringing Wende Black, who sent us three leads and has heard nothing in eight months. Give me the opening two sentences. Warm, not salesy, and it should sound like I noticed rather than like a campaign.">Give me the opening line</button>
+        <button class="act" data-q="DONE call-wende-black\n\nRang Wende Black." data-done-id="call-wende-black">Done</button>
+        <button class="act" data-q="SNOOZE call-wende-black" data-done-id="call-wende-black">Snooze</button>
+      </div>
     </div>
 
     <div class="theme">
@@ -326,21 +364,21 @@
 </details>
 
 <details>
-  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.9 1.2v.2a2 2 0 11-4 0v-.1A1.7 1.7 0 005 19.4l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.7 1.7 0 002.6 15a2 2 0 010-4h.1A1.7 1.7 0 004.6 5L4.5 5a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 002.9-1.2V1a2 2 0 114 0v.1A1.7 1.7 0 0019 4.6l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 001.2 2.9h.2a2 2 0 010 4h-.1z"/></svg><span class="st">The system</span><span class="ss">6 running</span><span class="caret">&#9662;</span></summary>
+  <summary><svg class="sicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7.5h.01M7 17h.01"/></svg><span class="st">The system</span><span class="ss">What is running, and on whose account</span><span class="caret">&#9662;</span></summary>
   <div class="inner">
     <div class="row"><div class="rt">Running for you</div>
       <div class="rm">The One Thing, 7am weekdays, one email replacing five &middot; Job health, Monday &middot; Commitment sweep, Friday &middot; Social drafts, Friday &middot; Blog draft, Friday &middot; This page, weekday mornings and afternoons</div></div>
     <div class="row"><div class="rt">Whose account each connection uses</div>
       <div class="rm">WordPress is <b>Ellie's</b> account, not yours, so it goes when she does. Google Ads, Analytics and Outlook are yours. JobTread is the Nuvo organisation. SharePoint is Bruce's. Google Business Profile is a personal unverified account, which is why reviews cannot be read.</div></div>
-    <div class="row"><div class="rt">Job notes now come off the Plaud</div>
+    <div class="row"><div class="rt">Job notes come off the Plaud</div>
       <div class="rm">You no longer email yourself. The blog and social tasks read your Plaud recordings straight out. A recording only counts once Plaud has transcribed it, which is not instant after it syncs.</div></div>
-    <div class="note">Every button goes to the same place, the chat. <strong>Ask about this</strong> answers here and has live JobTread. <strong>Draft it</strong> writes the message with a Copy button. <strong>Mark done</strong> records it on the spot and strikes the item through, and it stays struck through when this page rebuilds. No mail app, no emailing yourself.</div>
+    <div class="note">Every button goes to the same place, the chat. The suggested actions under each item are written for that item. <strong>Done</strong> records it and strikes it through, and it stays struck through when this page rebuilds. <strong>Snooze</strong> takes a date and the item disappears completely until then, when it comes back in your 7am email. No mail app, no emailing yourself.</div>
     <div class="note">Cannot see: Google Search Console, not available at all. Google Business Profile reviews. Semrush, out of API units. Indeed applicants, because the connector is the job seeker side only. Anything agreed on site or by phone. Sales response time, because JobTread comments are a handoff log rather than a contact log.</div>
   </div>
 </details>
 
 <div class="foot">
-  Built live this evening from JobTread, Outlook, Google Analytics, Google Ads, Facebook and Buffer. The 1 August analysis section is marked as such.<br>
+  Built live this evening from JobTread, Outlook, Google Analytics, Google Ads, Facebook and Buffer. The 1 August section is marked as such.<br>
   <a class="signout" href="/api/login?out=1">Sign out</a><br>
   Brand taken from your Elementor kit. Navy #143F5C, sand #CFB39C, Epilogue.
 </div>
