@@ -30,16 +30,40 @@ one line and offer to draft the text instead.`;
 // Pave needs the organization id on nearly every query. Look it up once per cold
 // start and hand it to the model, rather than spending two of its five tool
 // rounds rediscovering it every time Ben asks a question.
+//
+// Nuvo has one organization, 22NkB8CHiFWy. The grant key in Netlify answers
+// queries against it perfectly well but returns null for currentGrant.organization,
+// so the obvious lookup finds nothing. Hence the ladder, and hence the constant at
+// the bottom of it. Set JOBTREAD_ORGANIZATION_ID in Netlify to override.
+const KNOWN_ORG_ID = '22NkB8CHiFWy';
+
 let orgIdCache;
+
+async function probe(query, pick) {
+  try {
+    const r = await runJobTreadQuery(query);
+    const id = pick(r);
+    return typeof id === 'string' && id ? id : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 async function organizationId() {
   if (orgIdCache !== undefined) return orgIdCache;
-  try {
-    const r = await runJobTreadQuery({ currentGrant: { organization: { id: {} } } });
-    orgIdCache = (r && r.currentGrant && r.currentGrant.organization && r.currentGrant.organization.id) || null;
-  } catch (e) {
-    orgIdCache = null;
-  }
+
+  orgIdCache =
+    (process.env.JOBTREAD_ORGANIZATION_ID || '').trim() ||
+    (await probe(
+      { currentGrant: { organization: { id: {} } } },
+      (r) => r?.currentGrant?.organization?.id
+    )) ||
+    (await probe(
+      { currentGrant: { user: { memberships: { nodes: { organization: { id: {} } } } } } },
+      (r) => r?.currentGrant?.user?.memberships?.nodes?.[0]?.organization?.id
+    )) ||
+    KNOWN_ORG_ID;
+
   return orgIdCache;
 }
 
