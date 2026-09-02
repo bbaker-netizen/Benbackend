@@ -121,6 +121,9 @@
   .cleared .h, .cleared .rt, .cleared .t { text-decoration: line-through; }
   .cleared-tag { font-size: 10px; font-weight: 700; letter-spacing: .12em;
     text-transform: uppercase; color: var(--success-text, #006300); margin-top: 8px; }
+  .cleared-tag .undo { font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; cursor: pointer; background: none; border: none;
+    color: var(--ink-muted, #928d8a); text-decoration: underline; padding: 0 0 0 6px; }
   .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
     margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
     color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
@@ -317,6 +320,25 @@
       var tag = document.createElement('div');
       tag.className = 'cleared-tag';
       tag.textContent = stamp ? 'Done ' + stamp : 'Done';
+
+      /* One handed, on a site. A mis-tap has to be recoverable. */
+      var undo = document.createElement('button');
+      undo.className = 'undo';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', function () {
+        undo.disabled = true;
+        fetch('/api/done', {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok) { location.reload(); return; }
+          undo.disabled = false;
+          undo.textContent = 'Could not undo';
+        }).catch(function () { undo.disabled = false; undo.textContent = 'Could not undo'; });
+      });
+      tag.appendChild(document.createTextNode(' '));
+      tag.appendChild(undo);
       box.appendChild(tag);
     }
     return hit;

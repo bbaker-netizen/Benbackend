@@ -51,7 +51,9 @@ export default async (request) => {
     return json({ cleared: await listCleared() });
   }
 
-  if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+  if (request.method !== 'POST' && request.method !== 'DELETE') {
+    return json({ error: 'Use POST or DELETE' }, 405);
+  }
   if (!isSignedIn(request)) return json({ error: 'Not signed in' }, 401);
 
   let body;
@@ -67,6 +69,18 @@ export default async (request) => {
   if (!id) return json({ error: 'No id' }, 400);
 
   const key = id.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+
+  // Undo. He is reading this one handed on a site, so a mis-tap has to be
+  // recoverable. Without this the only way back is waiting 45 days.
+  if (request.method === 'DELETE') {
+    try {
+      await store().delete(key);
+    } catch (e) {
+      return json({ error: 'Could not undo that. ' + String(e.message || e) }, 502);
+    }
+    return json({ ok: true, undone: id });
+  }
+
   const record = { id, label, note, at: new Date().toISOString() };
 
   try {
