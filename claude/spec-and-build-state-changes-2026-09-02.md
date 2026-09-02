@@ -53,13 +53,28 @@ Now:
 - `DRAFT` opens the chat and has it write the message. Replies carry a Copy
   button.
 
-**Open item for the Friday commitment sweep.** The sweep still reads Inbox and
-Sent Items to find what Ben has done. It will no longer find DONE emails, because
-there will not be any. The cleared feed is at `GET /api/done` with
-`Authorization: Bearer <TASK_TOKEN>`, where `TASK_TOKEN` is a Netlify environment
-variable on site `30bdd77c-2d79-4967-a130-5e84e92cd64c`. The refresh task has
-been pointed at it. **The sweep has not.** Until it is, a cleared item stays open
-in the ledger until one of the sweep's other checks catches it.
+**The Friday commitment sweep is wired to it.** Done 2 September 2026. The sweep
+used to find what Ben had cleared by reading the DONE emails he sent himself.
+Those will never arrive again, so:
+
+- A new **STEP 3B** fetches the cleared feed, `GET /api/done` with
+  `Authorization: Bearer <TASK_TOKEN>`, before it re-tests any row. A record whose
+  id matches a ledger row sets that row to `done` with a note saying Ben cleared
+  it himself.
+- **STEP 2** now says explicitly not to go hunting for those emails, and that
+  their absence carries no meaning.
+- **STEP 4** re-tests against the cleared list first, because Ben pressing the
+  button beats anything inferred from a thread.
+- A record whose id matches no ledger row is NOT invented into one. It is
+  reported under "cleared on the page but not in the ledger", which is the early
+  warning that the page and the ledger have drifted apart on ids.
+- An unreachable feed is reported, never treated as an empty one. That
+  distinction matters: an empty feed means Ben cleared nothing, an unreachable one
+  means a week of his work is invisible.
+
+The loop is now closed. Tap on the page, the item strikes through, it stays
+struck through through the afternoon rebuild, and the ledger records it on
+Friday.
 
 ## 3. Marketing sources, tested 2 September 2026
 
