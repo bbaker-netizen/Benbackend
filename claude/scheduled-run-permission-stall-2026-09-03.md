@@ -82,3 +82,81 @@ The two stalled sessions from 3 September are still parked. If Ben approves that
 prompt later they will resume and complete hours late. The One Thing prompt now
 carries a rule for that case: past about 10am Mountain it says plainly that it is
 late, and if the day is mostly gone it does not send at all.
+
+---
+
+# Second instance, same day, and a correction
+
+21:40 UTC, 3 September 2026.
+
+The 2:30pm refresh run got past the Netlify tool. Then it hung on a different
+one and the page stayed stale anyway.
+
+    tool   mcp__Zapier__execute_zapier_write_action
+    api    GoogleAdsCLIAPI, action create_report
+    state  SESSION_STATUS_REQUIRES_ACTION since 20:41 UTC
+
+## What I got wrong this morning
+
+I told Ben I had "fixed the cause rather than waiting on you". That was wrong,
+and worth writing down because the error is instructive. I fixed one INSTANCE.
+The cause is structural: in a scheduled session, any tool call that has not been
+pre-approved hangs forever instead of failing, and nobody is awake to answer it.
+Removing one such call does not remove the class.
+
+## The thing that makes this hard to reason about
+
+The same tool, `execute_zapier_write_action`, is used by the morning brief to
+send email through `ZapierMailCLIAPI`, and that task SUCCEEDED at 13:09 the same
+day. So the tool is approved. The Google Ads call still hung.
+
+**Approval is per tool AND per argument shape.** Each distinct `selected_api`
+raises its own prompt. A tool being safe yesterday with one set of arguments
+tells you nothing about it today with another. That is why this keeps happening
+and why "the tools are approved now" will never be a reliable statement.
+
+## The structural fix, applied to the refresh task
+
+Reordered so that the page is BUILT AND DEPLOYED before anything that can hang
+is touched.
+
+    Stage one   plain HTTPS and long-proven tools only: cleared feed, ledger,
+                calendar, mail, JobTread, notes, blog, reports
+                -> write page -> DEPLOY -> confirm live
+    Stage two   marketing: GA4, Google Ads, Facebook, Buffer
+                -> if they return, rebuild the panel and deploy again
+                -> if one hangs, the run dies with today's page already live
+
+The marketing panel carries forward its previous figures with the date they were
+pulled, and the page says so.
+
+This does not stop the stalls. It makes them cost one panel instead of the whole
+day. That is the correct trade: a page that is right about his day and a few
+hours stale on ad spend beats a perfect page that never ships.
+
+Also removed the artifact handover step, which called remote-devices tools that
+are not approved here and would have hung the run AFTER a successful deploy for
+no benefit.
+
+## Still true, still unfixed
+
+Nothing can detect a hang from inside the session. There is no timeout. The only
+real defences are (a) do the important work first, and (b) reduce the number of
+un-preapproved tools the tasks reach for.
+
+The permanent fix is for Ben to pre-approve the specific tool-and-argument
+combinations the tasks need. Known ones so far:
+
+    mcp__Zapier__execute_zapier_write_action  selected_api GoogleAdsCLIAPI
+    mcp__Zapier__execute_zapier_write_action  selected_api GoogleAnalytics4CLIAPI
+    mcp__Facebook__ads_get_ad_entities
+    mcp__Netlify__netlify-project-services-reader   (no longer needed, removed)
+
+## Watch item, not yet evidence
+
+The One Thing gathers Buffer at step 7, before it composes. If Buffer needs an
+approval it does not have, the email dies there. No evidence of that yet: the
+morning brief succeeded the same day and likely touches Buffer too. Left alone
+deliberately rather than churning the prompt on a guess. If the 4 September 7am
+email does not arrive and the session shows a Buffer tool pending, that is the
+answer.
