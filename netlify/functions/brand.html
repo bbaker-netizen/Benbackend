@@ -1,0 +1,55 @@
+<!-- Nuvo brand tokens.
+     Injected into the HEAD by netlify/functions/site.js, after the page's own
+     styles, so these win.
+
+     WHY IT LIVES HERE AND NOT IN THE PAGE. command-centre.html is rewritten from
+     scratch twice a weekday by the refresh task. Anything the brand depends on
+     has to survive that, and the only things that survive it are the injected
+     partials. Put a colour in the page and it lasts until 6:30am.
+
+     Values are Nuvo's documented WEB palette, not the letterhead palette. The
+     two differ and both are live: letterhead is navy #052F66 with gold #F9B000,
+     web is navy #143F5C with gold #D4A24E. This is a screen, so it uses web. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Cobe is the website display face and is not a web font we can serve, so it
+     is named first for any machine that has it and Montserrat carries everyone
+     else. display=swap means the page paints immediately in the system face and
+     upgrades when the font lands, so one bar of signal costs nothing. */
+  :root {
+    --nuvo-font: "Cobe", "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+    --navy: #143f5c;
+    --sand: #d4a24e;   /* documented web accent gold, was a muted tan #cfb39c */
+    --gold: #d4a24e;
+    --tint: #e8edf2;   /* documented pale blue */
+    --plane: #f5f5f7;
+  }
+  :root:where(:not([data-theme="light"])) { }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --navy: #7fb2d4;
+      --sand: #d4a24e;
+      --gold: #d4a24e;
+      --tint: #1e2930;
+      --plane: #0e1418;
+    }
+  }
+  :root[data-theme="dark"] {
+    --navy: #7fb2d4;
+    --sand: #d4a24e;
+    --gold: #d4a24e;
+    --tint: #1e2930;
+    --plane: #0e1418;
+  }
+
+  body, .wrap, .panel, button, input, textarea, select {
+    font-family: var(--nuvo-font);
+  }
+
+  /* The brand bar is the one place navy is fixed rather than themed, because the
+     logo lockup only has approved treatments on navy or on white. */
+  .brandbar { background: #143f5c; border-bottom: 3px solid var(--gold); }
+</style>

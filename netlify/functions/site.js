@@ -87,6 +87,7 @@ async function load(name) {
 let cachedPage = null;
 let cachedWidget = null;
 let cachedTabs = null;
+let cachedBrand = null;
 
 // If the page file is ever missing, say so plainly. A blank screen or a stale
 // page presented as current is worse than an honest empty one, and the chat
@@ -139,6 +140,17 @@ function fallbackPage(detail) {
 // is no flash of an item Ben has already put away. :has() does the work in every
 // browser he uses; the widget removes them outright as a belt and braces for
 // anything older. Nothing renders a count and nothing renders a list.
+// The brand tokens go at the END of the head, after whatever the refresh task
+// wrote, so they win without needing !important. Same reasoning as the chat and
+// the tabs: the page is rebuilt twice a weekday and anything that must hold has
+// to live outside it.
+function addToHead(page, block) {
+  if (!block) return page;
+  const i = page.toLowerCase().lastIndexOf('</head>');
+  if (i === -1) return block + page;
+  return page.slice(0, i) + block + page.slice(i);
+}
+
 function hideSnoozed(page, hidden) {
   if (!hidden || !hidden.length) return page;
   const sel = hidden
@@ -155,7 +167,7 @@ function hideSnoozed(page, hidden) {
   return page.slice(0, i) + css + page.slice(i);
 }
 
-function inject(page, widget, tabs, cleared, hidden) {
+function inject(page, widget, tabs, brand, cleared, hidden) {
   const bits = [];
   if (cleared) {
     bits.push(
@@ -178,7 +190,7 @@ function inject(page, widget, tabs, cleared, hidden) {
   if (tabs) bits.push(tabs);
   if (!bits.length) return page;
   const blob = bits.join('\n');
-  const withHide = hideSnoozed(page, hidden);
+  const withHide = hideSnoozed(addToHead(page, brand), hidden);
   const i = withHide.toLowerCase().lastIndexOf('</body>');
   if (i === -1) return withHide + '\n' + blob + '\n';
   return withHide.slice(0, i) + blob + '\n' + withHide.slice(i);
@@ -202,6 +214,11 @@ export default async (request) => {
     cachedTabs = t ? t.text : '';
   }
 
+  if (cachedBrand === null) {
+    const b = await load('brand.html');
+    cachedBrand = b ? b.text : '';
+  }
+
   if (cachedPage === null) {
     cachedPage = await load('command-centre.html');
   }
@@ -215,19 +232,20 @@ export default async (request) => {
     'cache-control': 'no-store',
     'x-nuvo-chat': cachedWidget ? 'on' : 'missing',
     'x-nuvo-tabs': cachedTabs ? 'on' : 'missing',
+    'x-nuvo-brand': cachedBrand ? 'on' : 'missing',
     'x-nuvo-cleared': String(cleared.length)
   };
 
   if (!cachedPage) {
     /* No tabs on the fallback page. There is no Today to tab away from, and a
        tab bar over an apology reads like the page is fine. */
-    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cleared, hidden), {
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cachedBrand, cleared, hidden), {
       status: 200,
       headers: { ...headers, 'x-nuvo-page': 'missing' }
     });
   }
 
-  return new Response(inject(cachedPage.text, cachedWidget, cachedTabs, cleared, hidden), {
+  return new Response(inject(cachedPage.text, cachedWidget, cachedTabs, cachedBrand, cleared, hidden), {
     status: 200,
     headers: { ...headers, 'x-nuvo-page': 'ok' }
   });
