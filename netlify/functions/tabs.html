@@ -53,6 +53,80 @@
   .btn.danger { border-color: var(--critical, #d03b3b); color: var(--critical, #d03b3b); background: transparent; }
 
   .noteact { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* ---------- the pad ---------- */
+  /* Sticky notes, because that is what they are. The shape does the work: a
+     small square of coloured paper reads as "jotted and forgotten" in a way a
+     white rectangle with a border never will, and Ben scans the pad by colour
+     and position rather than by reading every one. Kept quiet enough to sit
+     next to the navy: paper tones, not highlighter. */
+  .pad { display: grid; gap: 14px; margin-top: 4px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .sticky { position: relative; display: flex; flex-direction: column;
+    min-height: 148px; padding: 14px 14px 12px; border: none; border-radius: 2px;
+    background: var(--p1); color: #33302e;
+    box-shadow: 0 1px 1px rgba(0,0,0,.10), 0 6px 14px -6px rgba(0,0,0,.30);
+    transition: transform .13s ease, box-shadow .13s ease; }
+  /* Deterministic tilt, from the note's position in the pad, so it never jumps
+     when the list re-renders. */
+  .sticky:nth-child(4n+1) { transform: rotate(-1.1deg); }
+  .sticky:nth-child(4n+2) { transform: rotate(0.8deg); }
+  .sticky:nth-child(4n+3) { transform: rotate(1.4deg); }
+  .sticky:nth-child(4n+4) { transform: rotate(-0.6deg); }
+  .sticky:hover, .sticky:focus-within {
+    transform: rotate(0deg) translateY(-2px);
+    box-shadow: 0 2px 3px rgba(0,0,0,.12), 0 12px 22px -8px rgba(0,0,0,.34); }
+
+  /* The turned-up corner. One triangle, no images. */
+  .sticky::after { content: ""; position: absolute; right: 0; bottom: 0;
+    width: 17px; height: 17px;
+    background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.09) 50%); }
+
+  .sticky .stext { flex: 1; font-size: 14.5px; line-height: 1.45;
+    white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
+  .sticky .swhen { margin-top: 10px; font-size: 10px; letter-spacing: .05em;
+    text-transform: uppercase; color: rgba(51,48,46,.52); }
+  .sticky .noteact { margin-top: 8px; gap: 5px; }
+  .sticky .btn { font-size: 11px; padding: 5px 10px; border-radius: 3px;
+    background: transparent; border-color: rgba(51,48,46,.28); color: #33302e; }
+  .sticky .btn:hover { background: rgba(0,0,0,.05); }
+
+  /* Four papers. Yellow is the one people picture; the rest keep a long pad from
+     turning into a wall of the same colour. */
+  .sticky.p1 { --p1: #fdf0a9; }
+  .sticky.p2 { --p1: #e7eef6; }
+  .sticky.p3 { --p1: #f6e2c8; }
+  .sticky.p4 { --p1: #dff0e2; }
+  .sticky.done { filter: saturate(.28); opacity: .62; }
+  .sticky.done .stext { text-decoration: line-through;
+    text-decoration-color: rgba(51,48,46,.4); }
+
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .sticky { color: #2b2825;
+      box-shadow: 0 1px 1px rgba(0,0,0,.5), 0 8px 18px -7px rgba(0,0,0,.7); }
+    :root:where(:not([data-theme="light"])) .sticky.p1 { --p1: #d8bf62; }
+    :root:where(:not([data-theme="light"])) .sticky.p2 { --p1: #b3c3d3; }
+    :root:where(:not([data-theme="light"])) .sticky.p3 { --p1: #d3b795; }
+    :root:where(:not([data-theme="light"])) .sticky.p4 { --p1: #a9c7b1; }
+  }
+
+  /* The blank one at the top of the pad. Same paper, deliberately bigger and
+     straight, so it reads as the place you write rather than one of the notes. */
+  .newsticky { background: #fdf0a9; border-radius: 2px; padding: 15px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.10), 0 8px 18px -7px rgba(0,0,0,.32);
+    margin-bottom: 18px; }
+  .newsticky textarea { width: 100%; display: block; font: inherit; font-size: 16px;
+    line-height: 1.5; border: none; outline: none; resize: none; background: transparent;
+    color: #33302e; min-height: 84px; padding: 0; }
+  .newsticky textarea::placeholder { color: rgba(51,48,46,.45); }
+  .newsticky .crow { display: flex; align-items: center; gap: 9px; margin-top: 6px; }
+  .newsticky .chint { flex: 1; font-size: 11px; color: rgba(51,48,46,.55); }
+  .newsticky .btn { border-radius: 3px; background: #33302e; border-color: #33302e; color: #fdf0a9; }
+  .newsticky .btn:disabled { opacity: .35; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .newsticky { background: #d8bf62; }
+    :root:where(:not([data-theme="light"])) .newsticky .btn { color: #d8bf62; }
+  }
   .insight { border-left: 3px solid var(--sand, #cfb39c); padding: 2px 0 2px 12px;
     margin: 0 0 16px; font-size: 14px; line-height: 1.55; color: var(--ink-2, #6b6766); }
   .insight b { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
@@ -248,14 +322,14 @@
     var insightSlot = el('div');
     p.appendChild(insightSlot);
 
-    var comp = el('div', 'composer');
+    var comp = el('div', 'newsticky');
     var ta = el('textarea');
     ta.setAttribute('placeholder', 'What is on your mind?');
     ta.setAttribute('rows', '3');
     ta.setAttribute('aria-label', 'New note');
     var row = el('div', 'crow');
     var hint = el('span', 'chint', '');
-    var add = el('button', 'btn', 'Add');
+    var add = el('button', 'btn', 'Stick it');
     add.type = 'button';
     add.disabled = true;
     row.appendChild(hint);
@@ -300,10 +374,30 @@
     }
     add.addEventListener('click', save);
 
+    /* Paper colour is derived from the note's own id, not its position, so a
+       note keeps the same colour for its whole life. Ben will remember "the
+       green one" long before he remembers the wording. */
+    function paperOf(id) {
+      var h = 2166136261;
+      for (var i = 0; i < id.length; i++) {
+        h ^= id.charCodeAt(i);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      /* Mix the high bits down before taking mod 4. A plain rolling hash leaves
+         the bottom two bits barely moving, and four notes in a row came out the
+         same colour in testing. */
+      h ^= h >>> 15;
+      h = Math.imul(h, 2246822507) >>> 0;
+      /* XOR in JS yields a SIGNED 32 bit int, and % keeps the sign, so without
+         the final >>> 0 this returns p0 and p-1 for half of all ids. */
+      h = (h ^ (h >>> 13)) >>> 0;
+      return 'p' + ((h % 4) + 1);
+    }
+
     function noteCard(n) {
-      var c = el('div', 'card');
-      c.appendChild(el('div', 'body', n.text));
-      var w = el('div', 'when', when(n.at) + (n.surfacedAt ? ' · put on Today ' + when(n.surfacedAt) : ''));
+      var c = el('div', 'sticky ' + paperOf(n.id) + (n.status === 'open' ? '' : ' done'));
+      c.appendChild(el('div', 'stext', n.text));
+      var w = el('div', 'swhen', when(n.at) + (n.surfacedAt ? ' · on Today ' + when(n.surfacedAt) : ''));
       c.appendChild(w);
       var acts = el('div', 'noteact');
       var close = el('button', 'btn quiet small', n.status === 'open' ? 'Close' : 'Reopen');
@@ -347,8 +441,11 @@
           list.appendChild(el('div', 'empty', closed.length
             ? 'Nothing open. ' + closed.length + ' closed ' + (closed.length === 1 ? 'note is' : 'notes are') + ' below.'
             : 'Nothing yet. Write the thing you would otherwise forget by Thursday.'));
+        } else {
+          var pad = el('div', 'pad');
+          open.forEach(function (n) { pad.appendChild(noteCard(n)); });
+          list.appendChild(pad);
         }
-        open.forEach(function (n) { list.appendChild(noteCard(n)); });
 
         if (closed.length) {
           var openClosed = false;
@@ -361,11 +458,9 @@
             box.hidden = !openClosed;
             fold.textContent = (openClosed ? 'Hide closed notes' : 'Closed notes (' + closed.length + ')');
             if (openClosed && !box.childNodes.length) {
-              closed.forEach(function (n) {
-                var c = noteCard(n);
-                c.style.opacity = '.62';
-                box.appendChild(c);
-              });
+              var cpad = el('div', 'pad');
+              closed.forEach(function (n) { cpad.appendChild(noteCard(n)); });
+              box.appendChild(cpad);
             }
           });
           list.appendChild(fold);

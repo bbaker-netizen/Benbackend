@@ -17,5 +17,6 @@
   included_files = [
     "command-centre.html",
     "netlify/functions/chat-widget.html",
-    "netlify/functions/tabs.html"
+    "netlify/functions/tabs.html",
+    "netlify/functions/brand.html"
   ]
