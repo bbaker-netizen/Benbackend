@@ -24,6 +24,34 @@
   .tabbtn .tcount { font-size: 10px; font-weight: 700; line-height: 1;
     padding: 3px 6px; border-radius: 50px; background: var(--sand, #cfb39c); color: #143f5c; }
 
+  /* The mail strip. Sits under the ask bar on Today only. The page is rebuilt
+     twice a weekday, so between rebuilds it is the only thing on screen that
+     can tell him what has actually just landed. */
+  .mailbar { max-width: 680px; margin: 0 auto; padding: 0 16px 4px; }
+  .mailbtn { display: inline-flex; align-items: center; gap: 7px; font: inherit;
+    font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 50px;
+    padding: 8px 14px; border: 1px solid var(--border, rgba(20,63,92,.12));
+    background: var(--surface-1, #fff); color: var(--navy, #143f5c); }
+  .mailbtn svg { width: 15px; height: 15px; }
+  .mailbtn:disabled { opacity: .55; cursor: default; }
+  .mailwhen { font-size: 11px; color: var(--ink-muted, #928d8a); margin-left: 9px; }
+  .mailspan { display: inline-flex; gap: 5px; margin-left: 8px; }
+  .mailspan button { font: inherit; font-size: 11px; cursor: pointer; padding: 5px 10px;
+    border-radius: 50px; border: 1px solid var(--border, rgba(20,63,92,.12));
+    background: transparent; color: var(--ink-muted, #928d8a); }
+  .mailspan button.on { background: var(--navy, #143f5c); color: #fff; border-color: var(--navy, #143f5c); }
+  .mailout { margin-top: 10px; }
+  .mailmsg { background: var(--surface-1, #fff); border: 1px solid var(--border, rgba(20,63,92,.12));
+    border-radius: 10px; padding: 11px 12px; margin-bottom: 7px; }
+  .mailmsg .mf { font-size: 12px; font-weight: 700; color: var(--navy, #143f5c); }
+  .mailmsg .ms { font-size: 14px; font-weight: 600; margin: 2px 0 4px; line-height: 1.35; }
+  .mailmsg .mp { font-size: 12px; color: var(--ink-2, #6b6766); line-height: 1.5; }
+  .mailmsg .mw { font-size: 10px; color: var(--ink-muted, #928d8a); letter-spacing: .04em; margin-top: 7px; }
+  .mailmsg.unread { border-left: 3px solid var(--navy, #143f5c); }
+  .mailnote { font-size: 13px; line-height: 1.55; color: var(--ink-2, #6b6766);
+    background: var(--offwhite, #f0ede8); border-radius: 10px; padding: 11px 12px; margin-top: 10px; }
+  .mailnote.bad { color: var(--critical, #d03b3b); }
+
   .panel { max-width: 680px; margin: 0 auto; padding: 18px 16px 90px; }
   .panel[hidden], .wrap[hidden] { display: none !important; }
   .panel h2 { font-size: 19px; margin: 0 0 4px; }
@@ -213,7 +241,10 @@
     return fetch(path, opts || {}).then(function (r) {
       if (r.status === 401) { location.href = '/'; return null; }
       return r.json().then(function (d) {
-        if (!r.ok && !d.needsDrop) throw new Error(d.error || ('HTTP ' + r.status));
+        // message first: the endpoints put the sentence a person should read
+        // there and the machine-readable code in error. Showing the code is how
+        // Ben ends up staring at "not-configured".
+        if (!r.ok && !d.needsDrop) throw new Error(d.message || d.error || ('HTTP ' + r.status));
         return d;
       });
     });
@@ -284,6 +315,7 @@
       buttons[t.key].classList.toggle('on', t.key === key);
       buttons[t.key].setAttribute('aria-selected', t.key === key ? 'true' : 'false');
     });
+    mailWrap.hidden = key !== 'today';
     if (push) {
       var h = key === 'today' ? ' ' : '#' + key;
       try { history.replaceState(null, '', h); } catch (e) { /* file:// and friends */ }
@@ -301,6 +333,120 @@
       b.appendChild(c);
     }
   }
+
+  /* ---------- the mail strip ---------- */
+  /* Ben asked for this on 3 September after the chat could not check an email.
+     The chat now has the mailbox as a tool, which is the real fix; this is the
+     other half of what he asked for, a button that just shows him what has
+     landed without him having to phrase a question. Today only: on the other
+     tabs it would be noise. */
+
+  var mailWrap = el('div', 'mailbar');
+  var mailRow = el('div');
+  var mailBtn = el('button', 'mailbtn');
+  mailBtn.type = 'button';
+  mailBtn.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/>' +
+    '<path d="M3 7l9 6 9-6"/></svg><span>Check mail</span>';
+  var mailWhen = el('span', 'mailwhen', '');
+  var mailSpan = el('span', 'mailspan');
+  var mailOut = el('div', 'mailout');
+
+  var SPANS = [{ k: 'today', label: 'Today' }, { k: '3d', label: '3 days' }, { k: '7d', label: '7 days' }];
+  var spanKey = 'today';
+
+  function hoursFor(k) {
+    if (k === '3d') return 72;
+    if (k === '7d') return 168;
+    /* Today means since local midnight, not the last 24 hours. He asked about
+       "an email from today" and those are different questions at 9am. */
+    var now = new Date();
+    var mid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.max(1, Math.ceil((now - mid) / 3600000));
+  }
+
+  SPANS.forEach(function (sp) {
+    var b = el('button', null, sp.label);
+    b.type = 'button';
+    if (sp.k === spanKey) b.className = 'on';
+    b.addEventListener('click', function () {
+      spanKey = sp.k;
+      mailSpan.querySelectorAll('button').forEach(function (x) { x.className = ''; });
+      b.className = 'on';
+      checkMail();
+    });
+    mailSpan.appendChild(b);
+  });
+
+  mailRow.appendChild(mailBtn);
+  mailRow.appendChild(mailSpan);
+  mailRow.appendChild(mailWhen);
+  mailWrap.appendChild(mailRow);
+  mailWrap.appendChild(mailOut);
+
+  function mailCard(m) {
+    var c = el('div', 'mailmsg' + (m.unread ? ' unread' : ''));
+    c.appendChild(el('div', 'mf', (m.from && (m.from.name || m.from.address)) || 'Unknown sender'));
+    c.appendChild(el('div', 'ms', m.subject));
+    if (m.preview) c.appendChild(el('div', 'mp', m.preview));
+    c.appendChild(el('div', 'mw', when(m.at) + (m.attachments ? ' - has an attachment' : '')));
+    var acts = el('div', 'noteact');
+    var ask = el('button', 'btn quiet small', 'Ask about this');
+    ask.type = 'button';
+    ask.addEventListener('click', function () {
+      if (window.__NUVO_ASK_ITEM__) {
+        window.__NUVO_ASK_ITEM__(
+          'An email from ' + ((m.from && (m.from.name || m.from.address)) || 'someone') +
+          ': ' + m.subject,
+          m.preview || ''
+        );
+      }
+    });
+    acts.appendChild(ask);
+    if (m.link) {
+      var open = el('a', 'btn quiet small', 'Open in Outlook');
+      open.href = m.link;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      open.style.textDecoration = 'none';
+      acts.appendChild(open);
+    }
+    c.appendChild(acts);
+    return c;
+  }
+
+  function checkMail() {
+    mailBtn.disabled = true;
+    mailWhen.textContent = 'Looking';
+    mailOut.textContent = '';
+    api('/api/mail?hours=' + hoursFor(spanKey) + '&limit=25').then(function (d) {
+      mailBtn.disabled = false;
+      if (!d) return;
+      mailWhen.textContent = 'Checked ' + when(new Date().toISOString());
+      if (!d.messages || !d.messages.length) {
+        /* An empty result and a broken pipe must never look the same. Say what
+           was searched. */
+        mailOut.appendChild(el('div', 'mailnote',
+          'Nothing in ' + (spanKey === 'today' ? 'today' : 'the last ' + (spanKey === '3d' ? '3 days' : '7 days')) +
+          '. That is a real look at ' + (d.mailbox || 'your mailbox') + ', not a failure.'));
+        return;
+      }
+      d.messages.forEach(function (m) { mailOut.appendChild(mailCard(m)); });
+    }).catch(function (e) {
+      mailBtn.disabled = false;
+      mailWhen.textContent = '';
+      var msg = String(e.message || e);
+      mailOut.appendChild(el('div', 'mailnote' + (/not connected|not-configured|Live mail is built/.test(msg) ? '' : ' bad'), msg));
+    });
+  }
+  mailBtn.addEventListener('click', function () { checkMail(); });
+
+  /* Above Today, below the ask bar, and outside .wrap on purpose: the chat reads
+     .wrap as its page context, and a mailbox preview sitting inside it would be
+     fed back into every question he asked. */
+  mailWrap.hidden = current !== 'today';
+  today.parentNode.insertBefore(mailWrap, today);
 
   var render = {};
 
