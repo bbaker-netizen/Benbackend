@@ -200,6 +200,61 @@
   .say.good { color: var(--success-text, #006300); }
   .droplist { margin-top: 10px; }
   .droplist .btn { display: block; width: 100%; text-align: left; margin-bottom: 7px; }
+
+  /* ---------- marketing ---------- */
+  /* Added 3 September 2026. Ben asked for one central place, so the cost per
+     won job lives here rather than on a separate page he has to remember. The
+     figures move monthly, not daily, so this panel is written by hand and the
+     date it was cut is stated on it. Never let it grow past one screen before
+     the fold: the whole point is that he can read it standing on a site. */
+  .mkhero { background: #143f5c; border-radius: 12px; padding: 16px 16px 14px;
+    color: #fff; margin-bottom: 12px; }
+  .mkhero .mkk { font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--gold, #d4a24e); font-weight: 700; }
+  .mkhero .mkn { font-size: 38px; line-height: 1; font-weight: 700; margin: 9px 0 6px;
+    font-variant-numeric: tabular-nums; }
+  .mkhero .mks { font-size: 13.5px; line-height: 1.5; color: #d3dee7; margin: 0; }
+  .mkrow { display: flex; gap: 8px; margin-bottom: 12px; }
+  .mktile { flex: 1; background: var(--surface-1, #fff); border-radius: 10px; padding: 11px 12px;
+    border: 1px solid var(--border, rgba(20,63,92,.12)); }
+  .mktile .v { font-size: 19px; font-weight: 700; color: var(--navy, #143f5c);
+    font-variant-numeric: tabular-nums; }
+  .mktile .l { font-size: 10px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-muted, #928d8a); margin-top: 3px; line-height: 1.35; }
+  .mktbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .mktbl th { background: #143f5c; color: #fff; font-size: 10px;
+    letter-spacing: .07em; text-transform: uppercase; text-align: right;
+    padding: 8px 10px; font-weight: 700; }
+  .mktbl th:first-child { text-align: left; }
+  .mktbl td { padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid var(--border, rgba(20,63,92,.12)); }
+  .mktbl td:first-child { text-align: left; }
+  .mktbl tr:last-child td { border-bottom: none; }
+  .mktbl .win { color: #0a8a0a; font-weight: 700; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .mktbl .win { color: #4fbf7a; }
+  }
+  :root[data-theme="dark"] .mktbl .win { color: #4fbf7a; }
+  .mkact { background: var(--surface-1, #fff); border: 1px solid var(--border, rgba(20,63,92,.12));
+    border-left: 4px solid #d03b3b; border-radius: 10px; padding: 13px 14px; margin-bottom: 10px; }
+  .mkact.two { border-left-color: var(--gold, #d4a24e); }
+  .mkact .t { font-weight: 700; font-size: 14.5px; margin-bottom: 5px; line-height: 1.35; }
+  .mkact .m { font-size: 13px; line-height: 1.55; color: var(--ink-2, #6b6766); }
+  .mkwhen { font-size: 11px; color: var(--ink-muted, #928d8a); letter-spacing: .04em;
+    margin: 2px 0 14px; }
+  .mkdet { background: var(--surface-1, #fff); border: 1px solid var(--border, rgba(20,63,92,.12));
+    border-radius: 10px; margin-bottom: 10px; }
+  .mkdet summary { list-style: none; cursor: pointer; padding: 12px 14px;
+    font-size: 13.5px; font-weight: 700; color: var(--navy, #143f5c); }
+  .mkdet summary::-webkit-details-marker { display: none; }
+  .mkdet summary::after { content: "+"; float: right; color: var(--ink-muted, #928d8a); font-weight: 400; }
+  .mkdet[open] summary::after { content: "\2212"; }
+  .mkdet .in { padding: 0 14px 13px; font-size: 13px; line-height: 1.6;
+    color: var(--ink-2, #6b6766); }
+  .mkdet .in ul { margin: 0; padding-left: 18px; }
+  .mkdet .in li { margin-bottom: 6px; }
+  .tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mktbl { min-width: 300px; }
 </style>
 <script>
 (function () {
@@ -254,7 +309,8 @@
     today: '<path d="M3 5h18v16H3z"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     notes: '<path d="M15 3H5v18h14V7z"/><path d="M14 3v5h5"/><path d="M8 12h7M8 16h5"/>',
     blog:  '<path d="M4 4h11l5 5v11H4z"/><path d="M8 12h8M8 16h5M8 8h4"/>',
-    reports: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>'
+    reports: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
+    marketing: '<path d="M3 11v3a1 1 0 0 0 1 1h3l4 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a3.5 3.5 0 0 1 0 6"/><path d="M19 6.5a7 7 0 0 1 0 11"/>'
   };
 
   function icon(name) {
@@ -268,7 +324,8 @@
     { key: 'today',   label: 'Today' },
     { key: 'notes',   label: 'Notes' },
     { key: 'blog',    label: 'Blog' },
-    { key: 'reports', label: 'Reports' }
+    { key: 'reports', label: 'Reports' },
+    { key: 'marketing', label: 'Marketing' }
   ];
 
   var bar = el('div', 'tabbar');
@@ -299,7 +356,7 @@
   /* The panels go after Today, so the reading order matches the tab order for a
      screen reader and for anyone who lands with JavaScript half loaded. */
   var after = today;
-  ['notes', 'blog', 'reports'].forEach(function (k) {
+  ['notes', 'blog', 'reports', 'marketing'].forEach(function (k) {
     after.parentNode.insertBefore(panels[k], after.nextSibling);
     after = panels[k];
   });
@@ -449,6 +506,128 @@
   today.parentNode.insertBefore(mailWrap, today);
 
   var render = {};
+
+  /* ================= MARKETING ================= */
+  /* Added 3 September 2026, the day Ben said he wanted everything in one place
+     rather than a page per question. This is the only panel written by hand
+     rather than fetched: ad spend and won jobs move monthly, so a live call
+     twice a weekday would be noise and one more thing to hang the run.
+     Whoever refreshes it: change CUT below, change the numbers, change nothing
+     else. If CUT goes more than about six weeks stale the panel says so by
+     itself. */
+
+  var MK = {
+    cut: '3 September 2026',
+    window: '12 months to 31 August 2026',
+    channels: [
+      { name: 'Referral',      spend: 'nil',     leads: 84,  won: 16, per: 'nil',    pct: 'nil',  best: true },
+      { name: 'Facebook',      spend: '$3,254',  leads: 54,  won: 8,  per: '$407',   pct: '0.4%', best: true },
+      { name: 'Google search', spend: '$36,093', leads: 180, won: 14, per: '$2,578', pct: '3.4%' }
+    ]
+  };
+
+  function mkStale() {
+    var d = new Date(MK.cut + ' 12:00');
+    if (isNaN(d)) return 0;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+
+  render.marketing = function () {
+    var p = panels.marketing;
+    p.innerHTML = '';
+    p.appendChild(el('h2', null, 'Marketing'));
+    p.appendChild(el('p', 'lead', 'What a won job costs, by channel. Not lead counts. Lead counts do not tell you anything you can act on.'));
+
+    var days = mkStale();
+    var stale = days > 45;
+    var w = el('p', 'mkwhen', 'Cut ' + MK.cut + ', ' + MK.window +
+      (stale ? '. That is ' + days + ' days old and due a refresh.' : '.'));
+    p.appendChild(w);
+
+    var hero = el('div', 'mkhero');
+    hero.innerHTML =
+      '<div class="mkk">The answer</div>' +
+      '<div class="mkn">$2,578</div>' +
+      '<p class="mks">That is what a won job costs you in Google Ads, 3.4 percent of the contract value. Good for renovation. Keep spending. Facebook wins one for $407.</p>';
+    p.appendChild(hero);
+
+    var row = el('div', 'mkrow');
+    [['$39,347', 'All ad spend'], ['234', 'Paid leads'], ['22', 'Became jobs']].forEach(function (t) {
+      var d = el('div', 'mktile');
+      d.innerHTML = '<div class="v">' + t[0] + '</div><div class="l">' + t[1] + '</div>';
+      row.appendChild(d);
+    });
+    p.appendChild(row);
+
+    var a1 = el('div', 'mkact');
+    a1.innerHTML =
+      '<div class="t">Pause NUVO MOFU Kitchen Search</div>' +
+      '<div class="m">Still live. 4,431 clicks since July, zero conversions, clicks at 8 cents. Real Edmonton renovation clicks cost you about $5.70. Nothing buying renovations at 8 cents. Ask whoever runs the ads to pause it, then say where those clicks came from.</div>';
+    p.appendChild(a1);
+
+    var a2 = el('div', 'mkact two');
+    a2.innerHTML =
+      '<div class="t">Ask what the second Google account is for</div>' +
+      '<div class="m">Quality Lead Magnet 3000 buys a lead for $628. Your main account buys one for $158. It is 19 percent of the Google budget doing 6 percent of the work.</div>';
+    p.appendChild(a2);
+
+    var tbl = el('div', 'card');
+    var rows = MK.channels.map(function (c) {
+      return '<tr><td>' + c.name + '</td><td>' + c.spend + '</td><td>' + c.won +
+        '</td><td' + (c.best ? ' class="win"' : '') + '>' + c.per + '</td></tr>';
+    }).join('');
+    tbl.innerHTML =
+      '<div class="tw"><table class="mktbl"><thead><tr><th>Channel</th><th>Ad spend</th>' +
+      '<th>Won</th><th>Per job</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div class="when">Leads: referral 84, Facebook 54, search 180. Percent of contract value: nil, 0.4, 3.4.</div>';
+    p.appendChild(tbl);
+
+    var d1 = el('details', 'mkdet');
+    d1.innerHTML =
+      '<summary>Facebook wins six times cheaper. Hold it loosely.</summary>' +
+      '<div class="in"><p>August called Facebook the weak link on a 12 percent win rate. Win rate was the wrong test. It ignores what the leads cost. Facebook converts worse and costs so little it wins jobs at a sixth of the price, and its won jobs are the biggest on the board at $93,750 average.</p>' +
+      '<p>Where it is flattered: Facebook only ran ads four months of twelve, and 17 of its 54 leads landed in months with no spend, so some of that is organic. Strip those out and it is still $594 a job, four times cheaper than Google.</p>' +
+      '<p><strong>Eight wins is a small pile.</strong> Not a reason to move the budget. A reason to run a real Facebook spend for one quarter and see if it holds.</p></div>';
+    p.appendChild(d1);
+
+    var d2 = el('details', 'mkdet');
+    d2.innerHTML =
+      '<summary>Where these numbers are soft</summary>' +
+      '<div class="in"><ul>' +
+      '<li>Job value is a size band, not a contract. Real values would move the percentages.</li>' +
+      '<li>Job phase is today\'s state, not history. A job in construction now could still sour.</li>' +
+      '<li>83 jobs this year have no source at all. Any could be paid.</li>' +
+      '<li>A Google conversion is not a lead. Some are the same person twice.</li>' +
+      '<li>Facebook source does not separate paid from organic page traffic.</li>' +
+      '</ul></div>';
+    p.appendChild(d2);
+
+    var d3 = el('details', 'mkdet');
+    d3.innerHTML =
+      '<summary>What still cannot be seen</summary>' +
+      '<div class="in"><ul>' +
+      '<li><strong>Search Console.</strong> No connector exists and Zapier has no app for it. Organic keywords stay dark.</li>' +
+      '<li><strong>Google Business Profile.</strong> Authorises, but only a personal unverified account is exposed, so no reviews.</li>' +
+      '<li><strong>Semrush.</strong> Subscription active, API units at zero. Billing, not wiring.</li>' +
+      '<li><strong>Which campaign won which job.</strong> Nothing carries the campaign into JobTread. Splitting the intake picklist between Google Ads and organic is the cheap fix.</li>' +
+      '</ul></div>';
+    p.appendChild(d3);
+
+    var ask = el('div', 'noteact');
+    [['Draft the note to whoever runs our ads about the MOFU campaign',
+      'DRAFT a short note to whoever runs our Google Ads. Ask them to pause the campaign called NUVO MOFU Kitchen Search, which has taken 4,431 clicks since July with zero conversions at 8 cents a click, and to come back with where that traffic came from. My voice, short.'],
+     ['What would a real Facebook test look like',
+      'ASK me what a proper three month Facebook ads test would look like for Nuvo. Budget, what we would measure, what result would make us move money off Google, and who should own it.']
+    ].forEach(function (t) {
+      var b = el('button', 'btn quiet small', t[0]);
+      b.type = 'button';
+      b.setAttribute('data-q', t[1]);
+      ask.appendChild(b);
+    });
+    p.appendChild(ask);
+    if (window.__NUVO_BIND__) window.__NUVO_BIND__(p);
+  };
+
 
   /* ================= NOTES ================= */
   /* A pad. He types, it sticks, it is never deleted. The daily refresh reads

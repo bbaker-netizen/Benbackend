@@ -693,7 +693,13 @@
 
   /* One entry point. ASK asks, DRAFT drafts, DONE records, all of it in the sheet.
      Nothing here opens a mail app any more. */
-  document.querySelectorAll('button[data-q], a[data-q]:not(.mailact)').forEach(function (b) {
+  /* Extracted 3 September 2026 so the tabs partial can bind buttons it renders
+     after load. The Marketing tab paints when Ben first taps it, long after this
+     file has run, and an unbound data-q button is a button that does nothing. */
+  function bindQ(root) {
+    (root || document).querySelectorAll('button[data-q], a[data-q]:not(.mailact)').forEach(function (b) {
+    if (b.__nuvoBound) return;
+    b.__nuvoBound = true;
     b.addEventListener('click', function (ev) {
       if (b.tagName === 'A') ev.preventDefault();
       var q = b.getAttribute('data-q').replace(/\\n/g, '\n');
@@ -713,7 +719,10 @@
         load(q);
       }
     });
-  });
+    });
+  }
+  bindQ(document);
+  window.__NUVO_BIND__ = bindQ;
 
   document.querySelectorAll('a.mailact').forEach(function (a) {
     a.addEventListener('click', function () {
