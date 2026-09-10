@@ -88,19 +88,24 @@
      white rectangle with a border never will, and Ben scans the pad by colour
      and position rather than by reading every one. Kept quiet enough to sit
      next to the navy: paper tones, not highlighter. */
-  .pad { display: grid; gap: 14px; margin-top: 4px;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  /* align-items:start is the important one. A grid stretches every cell to the
+     tallest in its row by default, so one long note left a tall empty gap under
+     every short note beside it. That was most of why the pad looked messy.
+     200px minimum, not 150: at 150 a note was about eighteen characters a line
+     and every note read as ragged. */
+  .pad { display: grid; gap: 16px; margin-top: 6px; align-items: start;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
   .sticky { position: relative; display: flex; flex-direction: column;
-    min-height: 148px; padding: 14px 14px 12px; border: none; border-radius: 2px;
+    min-height: 152px; padding: 15px 15px 13px; border: none; border-radius: 2px;
     background: var(--p1); color: #33302e;
     box-shadow: 0 1px 1px rgba(0,0,0,.10), 0 6px 14px -6px rgba(0,0,0,.30);
     transition: transform .13s ease, box-shadow .13s ease; }
   /* Deterministic tilt, from the note's position in the pad, so it never jumps
      when the list re-renders. */
-  .sticky:nth-child(4n+1) { transform: rotate(-1.1deg); }
-  .sticky:nth-child(4n+2) { transform: rotate(0.8deg); }
-  .sticky:nth-child(4n+3) { transform: rotate(1.4deg); }
-  .sticky:nth-child(4n+4) { transform: rotate(-0.6deg); }
+  .sticky:nth-child(4n+1) { transform: rotate(-0.7deg); }
+  .sticky:nth-child(4n+2) { transform: rotate(0.5deg); }
+  .sticky:nth-child(4n+3) { transform: rotate(0.9deg); }
+  .sticky:nth-child(4n+4) { transform: rotate(-0.4deg); }
   .sticky:hover, .sticky:focus-within {
     transform: rotate(0deg) translateY(-2px);
     box-shadow: 0 2px 3px rgba(0,0,0,.12), 0 12px 22px -8px rgba(0,0,0,.34); }
@@ -110,13 +115,44 @@
     width: 17px; height: 17px;
     background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.09) 50%); }
 
-  .sticky .stext { flex: 1; font-size: 14.5px; line-height: 1.45;
-    white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
-  .sticky .swhen { margin-top: 10px; font-size: 10px; letter-spacing: .05em;
-    text-transform: uppercase; color: rgba(51,48,46,.52); }
+  .sticky .stext { flex: 1; font-size: 15px; line-height: 1.5;
+    white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere;
+    cursor: text; }
+  /* A long note used to become a wall of paper taller than the screen. Clamp it
+     and let him open it. Ten lines is about where a note stops being a note. */
+  .sticky .stext.clamped { display: -webkit-box; -webkit-line-clamp: 10;
+    -webkit-box-orient: vertical; overflow: hidden; }
+  .sticky .smore { align-self: flex-start; margin-top: 6px; padding: 0;
+    background: none; border: none; cursor: pointer; font: inherit; font-size: 11px;
+    font-weight: 700; letter-spacing: .04em; text-decoration: underline;
+    color: rgba(51,48,46,.62); }
+
+  /* Editing. The tilt comes off while typing: a rotated textarea is unpleasant
+     to write in and the caret lands wrong. */
+  .sticky.editing { transform: rotate(0deg) !important; }
+  .sticky .sedit { flex: 1; width: 100%; display: block; font: inherit;
+    font-size: 15px; line-height: 1.5; border: none; outline: none; resize: none;
+    background: rgba(255,255,255,.42); color: #33302e; border-radius: 2px;
+    padding: 7px 8px; min-height: 96px; }
+  .sticky .sedit:focus { background: rgba(255,255,255,.72);
+    box-shadow: inset 0 0 0 1px rgba(51,48,46,.22); }
+  .sticky .serr { margin-top: 7px; font-size: 11px; line-height: 1.45;
+    color: #8a2020; }
+  /* Was uppercase and letter-spaced, which shouted louder than the note itself,
+     and it carried the "on Today" text inline so the line ran to three rows. */
+  .sticky .swhen { margin-top: 11px; font-size: 11px; line-height: 1.4;
+    color: rgba(51,48,46,.58); display: flex; flex-wrap: wrap;
+    align-items: center; gap: 6px; }
+  .sticky .stag { font-size: 9.5px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 2px;
+    background: rgba(51,48,46,.13); color: rgba(51,48,46,.72); }
   .sticky .noteact { margin-top: 8px; gap: 5px; }
-  .sticky .btn { font-size: 11px; padding: 5px 10px; border-radius: 3px;
+  .sticky .noteact { margin-top: 10px; gap: 6px; }
+  .sticky .btn { font-size: 11px; font-weight: 700; padding: 6px 11px;
+    border-radius: 3px; white-space: nowrap;
     background: transparent; border-color: rgba(51,48,46,.28); color: #33302e; }
+  .sticky .btn.prim { background: rgba(51,48,46,.86); color: var(--p1);
+    border-color: rgba(51,48,46,.86); }
   .sticky .btn:hover { background: rgba(0,0,0,.05); }
 
   /* Four papers. Yellow is the one people picture; the rest keep a long pad from
@@ -641,7 +677,7 @@
     var p = panels.notes;
     p.innerHTML = '';
     p.appendChild(el('h2', null, 'Notes'));
-    var lead = el('p', 'lead', 'Type it and forget it. Nothing here is ever deleted. Anything that comes due turns up on Today by itself.');
+    var lead = el('p', 'lead', 'Type it and forget it. Tap a note to change it. Nothing here is ever deleted, and anything that comes due turns up on Today by itself.');
     p.appendChild(lead);
 
     var insightSlot = el('div');
@@ -719,28 +755,141 @@
       return 'p' + ((h % 4) + 1);
     }
 
+    function post(body) {
+      return api('/api/notes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+
     function noteCard(n) {
       var c = el('div', 'sticky ' + paperOf(n.id) + (n.status === 'open' ? '' : ' done'));
-      c.appendChild(el('div', 'stext', n.text));
-      var w = el('div', 'swhen', when(n.at) + (n.surfacedAt ? ' · on Today ' + when(n.surfacedAt) : ''));
+
+      var text = el('div', 'stext', n.text);
+      var more = null;
+      c.appendChild(text);
+
+      /* Clamp only when there is genuinely something to hide. Measured after the
+         node is in the document, because scrollHeight is 0 while detached. */
+      function maybeClamp() {
+        if (text.scrollHeight <= text.clientHeight + 2) return;
+        text.classList.add('clamped');
+        if (more) return;
+        more = el('button', 'smore', 'More');
+        more.type = 'button';
+        more.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var open = text.classList.toggle('clamped');
+          more.textContent = open ? 'More' : 'Less';
+        });
+        text.parentNode.insertBefore(more, text.nextSibling);
+      }
+      c.__measure = maybeClamp;
+
+      var w = el('div', 'swhen');
+      w.appendChild(document.createTextNode(when(n.at)));
+      if (n.editedAt) w.appendChild(el('span', 'stag', 'edited'));
+      if (n.surfacedAt) w.appendChild(el('span', 'stag', 'on today'));
       c.appendChild(w);
+
       var acts = el('div', 'noteact');
+
+      /* ---- edit in place ---- */
+      /* The API has accepted {id, text} since the pad was built. Nothing in the
+         page ever offered it, so a note was write-once and Ben had to close one
+         and retype it to fix a word. */
+      function beginEdit() {
+        if (c.classList.contains('editing')) return;
+        c.classList.add('editing');
+
+        var ta = el('textarea', 'sedit');
+        ta.value = n.text;
+        ta.setAttribute('aria-label', 'Edit note');
+        var err = el('div', 'serr');
+        err.hidden = true;
+
+        var eacts = el('div', 'noteact');
+        var save = el('button', 'btn small prim', 'Save');
+        var cancel = el('button', 'btn quiet small', 'Cancel');
+        save.type = cancel.type = 'button';
+
+        function stop() {
+          c.classList.remove('editing');
+          load();
+        }
+
+        function commit() {
+          var v = ta.value.trim();
+          if (!v) {
+            err.hidden = false;
+            err.textContent = 'A note cannot be emptied. Close it instead.';
+            return;
+          }
+          if (v === n.text) { stop(); return; }
+          save.disabled = cancel.disabled = true;
+          err.hidden = true;
+          post({ id: n.id, text: v })
+            .then(function (d) { if (d) stop(); })
+            .catch(function (e) {
+              save.disabled = cancel.disabled = false;
+              err.hidden = false;
+              err.textContent = e.message;
+            });
+        }
+
+        save.addEventListener('click', commit);
+        cancel.addEventListener('click', stop);
+        ta.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { e.preventDefault(); stop(); }
+        });
+        ta.addEventListener('input', function () {
+          ta.style.height = 'auto';
+          ta.style.height = Math.max(96, ta.scrollHeight) + 'px';
+        });
+
+        eacts.appendChild(save);
+        eacts.appendChild(cancel);
+
+        text.hidden = true;
+        if (more) more.hidden = true;
+        w.hidden = true;
+        acts.hidden = true;
+        c.appendChild(ta);
+        c.appendChild(err);
+        c.appendChild(eacts);
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+        ta.style.height = Math.max(96, ta.scrollHeight) + 'px';
+      }
+
+      /* Tapping the paper edits it, which is what a sticky note should do.
+         Closed notes are read-only until reopened, so a struck-through note is
+         not silently editable. */
+      if (n.status === 'open') {
+        text.addEventListener('click', beginEdit);
+        var edit = el('button', 'btn quiet small', 'Edit');
+        edit.type = 'button';
+        edit.addEventListener('click', beginEdit);
+        acts.appendChild(edit);
+      }
+
       var close = el('button', 'btn quiet small', n.status === 'open' ? 'Close' : 'Reopen');
       close.type = 'button';
       close.addEventListener('click', function () {
         close.disabled = true;
-        api('/api/notes', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ id: n.id, status: n.status === 'open' ? 'closed' : 'open' })
-        }).then(function (d) { if (d) load(); })
+        post({ id: n.id, status: n.status === 'open' ? 'closed' : 'open' })
+          .then(function (d) { if (d) load(); })
           .catch(function () { close.disabled = false; });
       });
-      var ask = el('button', 'btn quiet small', 'Ask about this');
+
+      var ask = el('button', 'btn quiet small', 'Ask');
       ask.type = 'button';
       ask.addEventListener('click', function () {
         if (window.__NUVO_ASK_ITEM__) window.__NUVO_ASK_ITEM__('A note I wrote ' + when(n.at), n.text);
       });
+
       acts.appendChild(close);
       acts.appendChild(ask);
       c.appendChild(acts);
@@ -768,8 +917,10 @@
             : 'Nothing yet. Write the thing you would otherwise forget by Thursday.'));
         } else {
           var pad = el('div', 'pad');
-          open.forEach(function (n) { pad.appendChild(noteCard(n)); });
+          var cards = open.map(noteCard);
+          cards.forEach(function (card) { pad.appendChild(card); });
           list.appendChild(pad);
+          cards.forEach(function (card) { if (card.__measure) card.__measure(); });
         }
 
         if (closed.length) {
@@ -784,8 +935,10 @@
             fold.textContent = (openClosed ? 'Hide closed notes' : 'Closed notes (' + closed.length + ')');
             if (openClosed && !box.childNodes.length) {
               var cpad = el('div', 'pad');
-              closed.forEach(function (n) { cpad.appendChild(noteCard(n)); });
+              var ccards = closed.map(noteCard);
+              ccards.forEach(function (card) { cpad.appendChild(card); });
               box.appendChild(cpad);
+              ccards.forEach(function (card) { if (card.__measure) card.__measure(); });
             }
           });
           list.appendChild(fold);
