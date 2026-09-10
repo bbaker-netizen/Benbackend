@@ -57,6 +57,41 @@
   .panel h2 { font-size: 19px; margin: 0 0 4px; }
   .panel .lead { margin: 0 0 16px; font-size: 13px; color: var(--ink-muted, #928d8a); line-height: 1.5; }
 
+  /* ---- Away. A 45 day track, one row per person. ---- */
+  .awmeta { font-size: 11px; color: var(--ink-muted, #928d8a); margin: 0 0 14px; line-height: 1.5; }
+  .awmeta.stale { color: #8a5c00; font-weight: 700; }
+  .awscale { display: grid; grid-template-columns: repeat(45, 1fr);
+    font-size: 9px; color: var(--ink-muted, #928d8a); margin-bottom: 4px; }
+  .awscale span { grid-row: 1; white-space: nowrap; }
+  .awrow { background: var(--surface-1, #fff); border: 1px solid var(--border, rgba(20,63,92,.12));
+    border-radius: 10px; padding: 11px 12px 12px; margin-bottom: 9px; }
+  .awwho { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .awwho b { font-size: 15px; }
+  .awwho span { font-size: 11px; color: var(--ink-muted, #928d8a); }
+  .awtrack { display: grid; grid-template-columns: repeat(45, 1fr);
+    border: 1px solid var(--grid, #e0e0df); border-radius: 3px; overflow: hidden; }
+  .awtrack i { grid-row: 1; height: 24px; border-right: 1px solid var(--grid, #e0e0df); }
+  .awtrack i:last-child { border-right: none; }
+  .awtrack i.we { background: var(--offwhite, #f0ede8); }
+  .awtrack i.now { background: rgba(208,59,59,.18); }
+  .awbar { grid-row: 1; z-index: 2; border-radius: 3px; height: 18px; align-self: center;
+    margin: 0 1px; display: flex; align-items: center; justify-content: center;
+    font-size: 9.5px; font-weight: 700; color: #fff; overflow: hidden; white-space: nowrap; }
+  .awbar.vacation { background: var(--navy, #143f5c); }
+  .awbar.sick { background: var(--critical, #d03b3b); }
+  .awbar.other { background: var(--sand, #cfb39c); color: #33302e; }
+  .awdates { margin-top: 9px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2, #6b6766); }
+  .awdates b { color: var(--ink-1, #454242); }
+  .awflag { display: inline-block; margin-left: 6px; font-size: 9.5px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 2px;
+    background: rgba(250,178,25,.2); color: #8a5c00; }
+  .awwhy { margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--ink-2, #6b6766);
+    background: var(--offwhite, #f0ede8); border-radius: 6px; padding: 8px 10px; }
+  .awkey { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0 0;
+    font-size: 11px; color: var(--ink-muted, #928d8a); }
+  .awkey span { display: inline-flex; align-items: center; gap: 5px; }
+  .awkey i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+
   .card { background: var(--surface-1, #fff); border: 1px solid var(--border, rgba(20,63,92,.12));
     border-radius: 12px; padding: 14px; margin-bottom: 10px; }
   .card .when { font-size: 11px; color: var(--ink-muted, #928d8a); margin-top: 9px;
@@ -346,7 +381,8 @@
     notes: '<path d="M15 3H5v18h14V7z"/><path d="M14 3v5h5"/><path d="M8 12h7M8 16h5"/>',
     blog:  '<path d="M4 4h11l5 5v11H4z"/><path d="M8 12h8M8 16h5M8 8h4"/>',
     reports: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
-    marketing: '<path d="M3 11v3a1 1 0 0 0 1 1h3l4 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a3.5 3.5 0 0 1 0 6"/><path d="M19 6.5a7 7 0 0 1 0 11"/>'
+    marketing: '<path d="M3 11v3a1 1 0 0 0 1 1h3l4 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a3.5 3.5 0 0 1 0 6"/><path d="M19 6.5a7 7 0 0 1 0 11"/>',
+    away: '<rect x="3" y="6" width="18" height="15" rx="2"/><path d="M3 11h18M8 3v4M16 3v4"/><path d="M9 16h6"/>'
   };
 
   function icon(name) {
@@ -361,7 +397,8 @@
     { key: 'notes',   label: 'Notes' },
     { key: 'blog',    label: 'Blog' },
     { key: 'reports', label: 'Reports' },
-    { key: 'marketing', label: 'Marketing' }
+    { key: 'marketing', label: 'Marketing' },
+    { key: 'away',    label: 'Away' }
   ];
 
   var bar = el('div', 'tabbar');
@@ -392,7 +429,7 @@
   /* The panels go after Today, so the reading order matches the tab order for a
      screen reader and for anyone who lands with JavaScript half loaded. */
   var after = today;
-  ['notes', 'blog', 'reports', 'marketing'].forEach(function (k) {
+  ['notes', 'blog', 'reports', 'marketing', 'away'].forEach(function (k) {
     after.parentNode.insertBefore(panels[k], after.nextSibling);
     after = panels[k];
   });
@@ -1351,6 +1388,197 @@
     load();
   };
 
+  /* ================= AWAY ================= */
+  /* Who is off, 45 days out, one row per person.
+     The window is computed from TODAY IN THE BROWSER, not from whatever date
+     the roster was pulled on. So it rolls off by itself as the days pass, and a
+     roster that is a few days stale still draws a correct window; it is only
+     missing anything booked since. The age of the pull is stated on the page
+     rather than left for him to guess, because an empty leave board and a
+     broken pipe look identical and this build has been bitten by that before. */
+
+  var AWAY_DAYS = 45;
+
+  function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function ymdLocal(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+      '-' + String(d.getDate()).padStart(2, '0');
+  }
+  /* Parse YYYY-MM-DD as a LOCAL date. new Date('2026-09-25') is parsed as UTC,
+     which in Mountain time lands on the 24th and shifts every bar a day left. */
+  function parseYmd(s) {
+    var p = String(s).split('-');
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+  function dayIndex(from, s) {
+    return Math.round((parseYmd(s) - from) / 86400000);
+  }
+  function niceDate(s) {
+    return parseYmd(s).toLocaleDateString('en-CA', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  function workingDays(a, b) {
+    var n = 0, d = parseYmd(a), end = parseYmd(b);
+    while (d <= end) { var w = d.getDay(); if (w !== 0 && w !== 6) n++; d = addDays(d, 1); }
+    return n;
+  }
+
+  render.away = function () {
+    var p = panels.away;
+    p.innerHTML = '';
+    p.appendChild(el('h2', null, 'Away'));
+    p.appendChild(el('p', 'lead', 'Who is booked off over the next 45 days. Straight from NuvoCrew leave management. The window moves with the date, so yesterday drops off by itself.'));
+
+    var meta = el('p', 'awmeta');
+    p.appendChild(meta);
+    var body = el('div');
+    p.appendChild(body);
+
+    api('/api/leave').then(function (d) {
+      if (!d) return;
+      var from = dayStart(new Date());
+      var to = addDays(from, AWAY_DAYS - 1);
+      var fromS = ymdLocal(from), toS = ymdLocal(to);
+
+      if (d.empty) {
+        meta.className = 'awmeta stale';
+        meta.textContent = d.message;
+        return;
+      }
+
+      var age = d.ageDays;
+      meta.className = 'awmeta' + (age !== null && age >= 3 ? ' stale' : '');
+      meta.textContent =
+        'Window ' + niceDate(fromS) + ' to ' + niceDate(toS) + '. ' +
+        (age === null ? 'Pull date unknown.'
+          : age <= 0 ? 'Pulled from NuvoCrew today.'
+          : age === 1 ? 'Pulled from NuvoCrew yesterday.'
+          : 'Pulled from NuvoCrew ' + age + ' days ago.') +
+        (age !== null && age >= 3 ? ' Anything booked since will not be here.' : '') +
+        (d.account ? ' Read through the ' + d.account + ' account.' : '');
+
+      /* Overlap, not containment: a booking that starts before the window and
+         ends inside it still means someone is away. */
+      var rows = (d.leave || []).filter(function (r) {
+        return r.end >= fromS && r.start <= toS;
+      });
+
+      if (!rows.length) {
+        body.appendChild(el('div', 'empty',
+          'Nobody is booked off in the next 45 days. That is a real look at the roster, not a failure. ' +
+          (d.horizonTo ? 'The pull looked ahead to ' + niceDate(d.horizonTo) + '.' : '')));
+        return;
+      }
+
+      /* One row per person, all their bookings on one track. */
+      var byPerson = {};
+      var order = [];
+      rows.forEach(function (r) {
+        if (!byPerson[r.name]) { byPerson[r.name] = []; order.push(r.name); }
+        byPerson[r.name].push(r);
+      });
+      order.sort(function (a, b) {
+        return byPerson[a][0].start.localeCompare(byPerson[b][0].start);
+      });
+
+      /* A date scale every seven days, so the track means something. */
+      var scale = el('div', 'awscale');
+      for (var i = 0; i < AWAY_DAYS; i += 7) {
+        var lab = el('span', null, parseYmd(ymdLocal(addDays(from, i)))
+          .toLocaleDateString('en-CA', { day: 'numeric', month: 'short' }));
+        lab.style.gridColumn = (i + 1) + ' / span 7';
+        scale.appendChild(lab);
+      }
+      body.appendChild(scale);
+
+      order.forEach(function (name) {
+        var list = byPerson[name];
+        var row = el('div', 'awrow');
+
+        var whoLine = el('div', 'awwho');
+        whoLine.appendChild(el('b', null, name));
+        if (list[0].title) whoLine.appendChild(el('span', null, list[0].title +
+          (list[0].dept ? ' · ' + list[0].dept : '')));
+        row.appendChild(whoLine);
+
+        var track = el('div', 'awtrack');
+        for (var i = 0; i < AWAY_DAYS; i++) {
+          var d0 = addDays(from, i);
+          var cell = el('i');
+          var w = d0.getDay();
+          if (w === 0 || w === 6) cell.className = 'we';
+          if (i === 0) cell.className = (cell.className ? cell.className + ' ' : '') + 'now';
+          track.appendChild(cell);
+        }
+        list.forEach(function (r) {
+          var a = Math.max(0, dayIndex(from, r.start));
+          var b = Math.min(AWAY_DAYS - 1, dayIndex(from, r.end));
+          if (b < a) return;
+          var bar = el('div', 'awbar ' + (r.type === 'vacation' ? 'vacation' : r.type === 'sick' ? 'sick' : 'other'));
+          bar.style.gridColumn = (a + 1) + ' / ' + (b + 2);
+          var span = b - a + 1;
+          if (span >= 4) bar.textContent = span + 'd';
+          bar.title = name + ', ' + niceDate(r.start) + ' to ' + niceDate(r.end);
+          track.appendChild(bar);
+        });
+        row.appendChild(track);
+
+        list.forEach(function (r) {
+          var line = el('div', 'awdates');
+          var same = r.start === r.end;
+          line.appendChild(el('b', null, same ? niceDate(r.start) : niceDate(r.start) + ' to ' + niceDate(r.end)));
+          var wd = workingDays(r.start, r.end);
+          /* The status is shown as a flag OR as text, never both. Printing it
+             in each gave "sick pending" followed by a "pending" chip. */
+          line.appendChild(document.createTextNode(
+            ' · ' + wd + ' working day' + (wd === 1 ? '' : 's') +
+            (r.hours ? ', ' + r.hours + 'h' : '') +
+            ' · ' + r.type + ' '));
+          if (r.status && r.status !== 'approved') line.appendChild(el('span', 'awflag', r.status));
+          if (/overdraw|override/i.test(r.note || '')) line.appendChild(el('span', 'awflag', 'admin override'));
+
+          /* The reason stays behind a tap. Leave reasons carry medical and
+             family detail and this board gets opened on a phone on a site. */
+          if (r.reason || r.note) {
+            var why = el('button', 'btn quiet small', 'Why');
+            why.type = 'button';
+            why.style.marginLeft = '8px';
+            var box = el('div', 'awwhy');
+            box.hidden = true;
+            box.textContent = [r.reason, r.note].filter(Boolean).join(' — ');
+            why.addEventListener('click', function () {
+              box.hidden = !box.hidden;
+              why.textContent = box.hidden ? 'Why' : 'Hide';
+            });
+            line.appendChild(why);
+            row.appendChild(line);
+            row.appendChild(box);
+            return;
+          }
+          row.appendChild(line);
+        });
+
+        body.appendChild(row);
+      });
+
+      var key = el('div', 'awkey');
+      [['vacation', 'Vacation'], ['sick', 'Sick'], ['other', 'Other']].forEach(function (k) {
+        var sp = el('span');
+        var sw = el('i');
+        sw.className = '';
+        sw.style.background = k[0] === 'vacation' ? 'var(--navy, #143f5c)'
+          : k[0] === 'sick' ? 'var(--critical, #d03b3b)' : 'var(--sand, #cfb39c)';
+        sp.appendChild(sw);
+        sp.appendChild(document.createTextNode(k[1]));
+        key.appendChild(sp);
+      });
+      body.appendChild(key);
+    }).catch(function (e) {
+      meta.className = 'awmeta stale';
+      meta.textContent = 'Could not read the leave roster. ' + e.message;
+    });
+  };
+
   /* ---------- routing ---------- */
   /* Hash routing, so The One Thing can link straight to a tab and Ben can
      bookmark one. #chat stays the chat's, and is left alone. */
@@ -1375,5 +1603,14 @@
   /* A pending draft is something waiting on him, so it earns a number on the
      tab. Notes do not: a pad is not a queue and a count would turn it into one. */
   api('/api/blog').then(function (d) { if (d) count('blog', d.pending); }).catch(function () {});
+
+  /* A number on the Away tab only when someone is off inside the next seven
+     days. Further out is planning, not something he needs nudging about. */
+  api('/api/leave').then(function (d) {
+    if (!d || !d.leave) return;
+    var from = dayStart(new Date());
+    var a = ymdLocal(from), b = ymdLocal(addDays(from, 6));
+    count('away', d.leave.filter(function (r) { return r.end >= a && r.start <= b; }).length);
+  }).catch(function () {});
 })();
 </script>
