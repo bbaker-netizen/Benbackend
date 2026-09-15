@@ -153,6 +153,56 @@
     color: #fff; }
   .abask .abaskplus svg { width: 9px; height: 9px; display: block; }
 
+  /* ---------- update an item ---------- */
+  /* The point of this is that Ben never has to leave the item to say something
+     about it. Everything below is drawn inside the item's own box: what he said
+     last, what he said before that, and the one text box to say the next thing. */
+  button.act.upd { background: var(--navy, #143f5c); color: #fff; border-color: var(--navy, #143f5c); }
+  .updbox { margin-top: 10px; padding: 11px 12px; border-radius: 12px;
+    background: var(--offwhite, #f0ede8); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
+  .updbox textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px;
+    line-height: 1.45; min-height: 62px; resize: vertical; padding: 9px 10px;
+    border-radius: 9px; border: 1px solid var(--border, rgba(20,63,92,0.16));
+    background: var(--surface-1, #fff); color: var(--ink-1, #454242); }
+  .updrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 9px; }
+  .updrow .lab { font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-muted, #928d8a); margin-right: 2px; }
+  .updchip { font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+    padding: 5px 11px; border-radius: 50px; background: var(--surface-1, #fff);
+    color: var(--ink-1, #454242); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
+  .updchip.on { background: var(--navy, #143f5c); color: #fff; border-color: var(--navy, #143f5c); }
+  .updsave { font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+    padding: 8px 16px; border-radius: 50px; border: none;
+    background: var(--navy, #143f5c); color: #fff; }
+  .updcancel { font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: none; border: none; color: var(--ink-muted, #928d8a); text-decoration: underline; }
+  .updwarn { font-size: 12px; color: #9b1c1c; margin-top: 8px; }
+
+  /* The log. Ben asked to see where a thing is at; this is that, on the item,
+     newest first, no tapping through. */
+  .updlog { margin-top: 9px; border-top: 1px dashed var(--border, rgba(20,63,92,0.18)); padding-top: 8px; }
+  .updlog .ev { font-size: 12px; line-height: 1.5; color: var(--ink-1, #454242); padding: 3px 0; }
+  .updlog .ev .when { font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-muted, #928d8a); margin-right: 7px; }
+  .updlog .more { font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+    background: none; border: none; padding: 4px 0 0; color: var(--navy, #143f5c); text-decoration: underline; }
+
+  /* What his last word on an item looks like when the panel is shut. This is the
+     bit that survives the twice daily rebuild: the task rewrites the item, and
+     this gets drawn back on top of whatever it wrote. */
+  .updnote { margin-top: 9px; padding: 8px 11px; border-radius: 10px;
+    background: var(--offwhite, #f0ede8);
+    border-left: 3px solid var(--navy, #143f5c);
+    font-size: 13px; line-height: 1.5; color: var(--ink-1, #454242); }
+  .updnote .who { display: block; font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-muted, #928d8a); margin-bottom: 3px; }
+  .updflag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 50px; margin: 8px 8px 0 0;
+    background: var(--navy, #143f5c); color: #fff; }
+  .updflag.low { background: var(--ink-muted, #928d8a); }
+  .updflag.status { background: transparent; color: var(--navy, #143f5c);
+    border: 1px solid var(--navy, #143f5c); }
+
   .msg-copy { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
     margin-top: 8px; padding: 4px 10px; border-radius: 50px; background: transparent;
     color: var(--navy, #143f5c); border: 1px solid var(--border, rgba(20,63,92,0.12)); }
@@ -772,6 +822,306 @@
       acts.appendChild(b);
     }
   })();
+
+
+  /* ---------- update an item ---------- */
+  /* Ben, 15 September 2026: "I would like to provide comments or updates in items
+     so that things can move off, move up in priority, be updated based on my
+     input and have a log so I can see where things are at."
+
+     The lag he is describing is not the page being slow. It is that his knowledge
+     lived in a conversation and the page never heard about it, so every morning
+     he re-read items he had already dealt with. One text box on the item, and the
+     page knows what he knows.
+
+     Everything here writes to /api/done, which is append only, so nothing he says
+     is ever overwritten and the log is the thread itself. */
+
+  var STATUSES = ['Waiting on someone', 'In progress', 'Blocked'];
+
+  function verbOf(e) {
+    if (e.kind === 'comment') return e.text || '';
+    if (e.kind === 'bump') return Number(e.bump) > 0 ? 'Moved up' : 'Moved down';
+    if (e.kind === 'status') return e.status ? 'Marked ' + e.status.toLowerCase() : 'Status cleared';
+    if (e.kind === 'done') return 'Marked done';
+    if (e.kind === 'snooze') return 'Snoozed to ' + (e.until || 'later');
+    if (e.kind === 'reopen') return 'Reopened';
+    return e.kind;
+  }
+
+  /* Newest first, because "where is this at" is answered by the last thing that
+     happened. Four lines, then the rest on request: an item he has worked for a
+     fortnight should not push the next item off the screen. */
+  function renderLog(host, events) {
+    host.innerHTML = '';
+    var evs = (events || []).slice().reverse();
+    if (!evs.length) return;
+    var shown = 0;
+    function draw(limit) {
+      host.innerHTML = '';
+      for (var i = 0; i < evs.length && i < limit; i++) {
+        var e = evs[i];
+        var line = document.createElement('div');
+        line.className = 'ev';
+        var w = document.createElement('span');
+        w.className = 'when';
+        w.textContent = shortDate(e.at) + (e.via === 'email-reply' ? ' · by email' : '');
+        line.appendChild(w);
+        line.appendChild(document.createTextNode(verbOf(e)));
+        host.appendChild(line);
+        shown = i + 1;
+      }
+      if (evs.length > shown) {
+        var more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'more';
+        more.textContent = 'Show all ' + evs.length;
+        more.addEventListener('click', function () { draw(evs.length); });
+        host.appendChild(more);
+      }
+    }
+    draw(4);
+  }
+
+  /* The item's own box, redrawn from the record. Called after a save and on load
+     from the server's seed, so the twice daily rebuild cannot lose his words. */
+  function paintItem(box, rec) {
+    if (!box) return;
+    var old = box.querySelectorAll('.updnote, .updflag, .updlog');
+    for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+
+    var last = null;
+    var evs = rec.events || [];
+    for (var j = evs.length - 1; j >= 0; j--) {
+      if (evs[j].kind === 'comment' && evs[j].text) { last = evs[j]; break; }
+    }
+
+    var acts = box.querySelector('.acts');
+    var before = acts || null;
+
+    if (rec.status) {
+      var st = document.createElement('span');
+      st.className = 'updflag status';
+      st.textContent = rec.status;
+      box.insertBefore(st, before);
+    }
+    if (rec.priority > 0) {
+      var up = document.createElement('span');
+      up.className = 'updflag';
+      up.textContent = 'Moved up';
+      box.insertBefore(up, before);
+    } else if (rec.priority < 0) {
+      var dn = document.createElement('span');
+      dn.className = 'updflag low';
+      dn.textContent = 'Pushed down';
+      box.insertBefore(dn, before);
+    }
+    if (last) {
+      var note = document.createElement('div');
+      note.className = 'updnote';
+      var who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = 'You, ' + shortDate(last.at);
+      note.appendChild(who);
+      note.appendChild(document.createTextNode(last.text));
+      box.insertBefore(note, before);
+    }
+    if (rec.priority > 0) moveToTop(box);
+  }
+
+  /* Moved up means moved up now, on the page he is holding, not at the next
+     rebuild. Only within its own section: a site visit does not jump above the
+     money. */
+  function moveToTop(box) {
+    if (!box || !box.parentNode) return;
+    var first = null;
+    var sib = box.previousElementSibling;
+    while (sib) {
+      if (sib.className === box.className) first = sib;
+      sib = sib.previousElementSibling;
+    }
+    if (first) box.parentNode.insertBefore(box, first);
+  }
+
+  /* One POST per thing he changed, in order, so each lands as its own event in
+     the log. Three taps is still one save to him. */
+  function postAll(queue) {
+    var last = null;
+    return queue.reduce(function (chain, body) {
+      return chain.then(function () {
+        return fetch('/api/done', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function (r) {
+          if (r.status === 401) { location.href = '/'; return null; }
+          return r.json();
+        }).then(function (d) {
+          if (!d) return null;
+          if (d.error) throw new Error(d.error);
+          last = d.cleared;
+          return d;
+        });
+      });
+    }, Promise.resolve()).then(function () { return last; });
+  }
+
+  function openUpdate(btn, id, label, box) {
+    var existing = box.querySelector('.updbox');
+    if (existing) { existing.parentNode.removeChild(existing); return; }
+
+    var wrap = document.createElement('div');
+    wrap.className = 'updbox';
+
+    var ta = document.createElement('textarea');
+    ta.placeholder = 'What is the latest on this?';
+    wrap.appendChild(ta);
+
+    var prio = 0;
+    var status = null;
+
+    var r1 = document.createElement('div');
+    r1.className = 'updrow';
+    var l1 = document.createElement('span');
+    l1.className = 'lab';
+    l1.textContent = 'Priority';
+    r1.appendChild(l1);
+    [['Move up', 1], ['Push down', -1]].forEach(function (o) {
+      var c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'updchip';
+      c.textContent = o[0];
+      c.addEventListener('click', function () {
+        prio = prio === o[1] ? 0 : o[1];
+        var all = r1.querySelectorAll('.updchip');
+        for (var k = 0; k < all.length; k++) all[k].classList.remove('on');
+        if (prio === o[1]) c.classList.add('on');
+      });
+      r1.appendChild(c);
+    });
+    wrap.appendChild(r1);
+
+    var r2 = document.createElement('div');
+    r2.className = 'updrow';
+    var l2 = document.createElement('span');
+    l2.className = 'lab';
+    l2.textContent = 'Status';
+    r2.appendChild(l2);
+    STATUSES.forEach(function (name) {
+      var c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'updchip';
+      c.textContent = name;
+      c.addEventListener('click', function () {
+        status = status === name ? null : name;
+        var all = r2.querySelectorAll('.updchip');
+        for (var k = 0; k < all.length; k++) all[k].classList.remove('on');
+        if (status === name) c.classList.add('on');
+      });
+      r2.appendChild(c);
+    });
+    wrap.appendChild(r2);
+
+    var r3 = document.createElement('div');
+    r3.className = 'updrow';
+    var save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'updsave';
+    save.textContent = 'Save';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'updcancel';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', function () { wrap.parentNode.removeChild(wrap); });
+    r3.appendChild(save);
+    r3.appendChild(cancel);
+    wrap.appendChild(r3);
+
+    var log = document.createElement('div');
+    log.className = 'updlog';
+    wrap.appendChild(log);
+    var seeded = SEED[id];
+    if (seeded) renderLog(log, seeded.events);
+
+    save.addEventListener('click', function () {
+      var text = ta.value.trim();
+      var queue = [];
+      if (text) queue.push({ id: id, label: label, action: 'comment', note: text });
+      if (prio) queue.push({ id: id, label: label, action: 'bump', bump: prio });
+      if (status !== null) queue.push({ id: id, label: label, action: 'status', status: status || '' });
+      if (!queue.length) { wrap.parentNode.removeChild(wrap); return; }
+
+      save.disabled = true;
+      save.textContent = 'Saving';
+      var warn = wrap.querySelector('.updwarn');
+      if (warn) warn.parentNode.removeChild(warn);
+
+      postAll(queue).then(function (rec) {
+        if (!rec) return;
+        SEED[id] = rec;
+        if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+        paintItem(box, rec);
+      }).catch(function (e) {
+        /* Never a silent failure. If it did not save, his words stay in the box
+           where he can see them, and the page does not pretend. */
+        save.disabled = false;
+        save.textContent = 'Save';
+        var w = document.createElement('div');
+        w.className = 'updwarn';
+        w.textContent = 'That did not save, so I have left it here rather than lose it. '
+          + (e && e.message ? e.message : '');
+        wrap.appendChild(w);
+      });
+    });
+
+    box.appendChild(wrap);
+    setTimeout(function () { ta.focus(); }, 60);
+  }
+
+  /* Whatever the server already knows he has said. site.js reads it on every
+     request, so a comment he left this morning is on the item this afternoon,
+     on a page the refresh task rebuilt in between and knew nothing about. */
+  var SEED = {};
+  (function () {
+    var u = window.__NUVO_UPDATED__;
+    if (!u || !u.length) return;
+    for (var i = 0; i < u.length; i++) SEED[u[i].id] = u[i];
+  })();
+
+  /* Added here, not in the page, for the same reason as the Ask chip: the twice
+     daily rebuild cannot lose it, and the task never has to remember it. */
+  function bindUpdate(root) {
+    function textOf(b, sel) {
+      var el = b.querySelector(sel);
+      return el ? String(el.innerText || el.textContent || '').trim() : '';
+    }
+    var rows = (root || document).querySelectorAll('.acts');
+    for (var i = 0; i < rows.length; i++) {
+      var acts = rows[i];
+      if (acts.querySelector('.upd')) continue;
+      var marker = acts.querySelector('[data-done-id]') ||
+        (containerOf(acts) || acts).querySelector('[data-done-id]');
+      var box = containerOf(marker || acts) || acts.parentNode;
+      if (!box) continue;
+      var title = textOf(box, '.t') || textOf(box, '.rt') || textOf(box, '.h') || textOf(box, '.mt');
+      if (!title) continue;
+      var id = (marker && marker.getAttribute('data-done-id')) || title;
+      if (box.classList.contains('cleared')) continue;
+
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'act upd';
+      b.textContent = 'Update';
+      (function (bb, iid, ttl, bx) {
+        bb.addEventListener('click', function () { openUpdate(bb, iid, ttl, bx); });
+      })(b, id, title, box);
+      acts.insertBefore(b, acts.firstChild);
+
+      if (SEED[id]) paintItem(box, SEED[id]);
+    }
+  }
+  bindUpdate(document);
+  window.__NUVO_UPDATE__ = bindUpdate;
 
   /* ---------- composer ---------- */
 
