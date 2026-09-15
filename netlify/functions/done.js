@@ -10,6 +10,18 @@ import { isSignedIn, json } from './_auth.js';
 // because site.js reads this store and marks the item done again on whatever
 // page the refresh task has just written. Ben never sees a thing he has cleared,
 // even if the task puts it back.
+//
+// APPEND ONLY, since 15 September 2026. Every item used to hold ONE record with
+// ONE verb, overwritten on each touch. That is why there was never a log: the
+// previous answer was gone the moment he gave a new one.
+//
+// An item now holds a thread of events and its current state is DERIVED from
+// that thread. Nothing he says is ever overwritten, and "where is this at" is
+// answerable by reading the item rather than remembering.
+//
+// The shape the scheduled tasks read is unchanged. The commitment sweep and The
+// One Thing both call GET here and expect {cleared, snoozed, dueToday}; those
+// keys mean exactly what they meant before. `updated` is new and additive.
 
 const STORE = 'nuvo-cleared';
 const MAX_AGE_DAYS = 45; // past that the ledger has caught up and it is noise
@@ -24,6 +36,46 @@ function isSnoozed(rec, now) {
 
 function store() {
   return getStore({ name: STORE, consistency: 'strong' });
+}
+
+// Old records predate the event log and carry a single verb. Read them as a
+// one event thread so the rest of the code only ever handles one shape.
+function normalise(rec) {
+  if (!rec) return null;
+  if (Array.isArray(rec.events)) return rec;
+  return {
+    ...rec,
+    events: [{
+      at: rec.at,
+      via: rec.via || 'page',
+      kind: rec.kind || 'done',
+      text: rec.note || '',
+      ...(rec.until ? { until: rec.until } : {})
+    }],
+    lastAt: rec.at,
+    priority: 0,
+    status: null
+  };
+}
+
+// Current state is whatever the thread last said. Walk it forward rather than
+// trusting a stored flag, so a reopen after a done genuinely reopens and the
+// order of events is the single source of truth.
+function derive(rec) {
+  let kind = 'open';
+  let until = null;
+  let status = rec.status || null;
+  let priority = 0;
+
+  for (const e of rec.events || []) {
+    if (e.kind === 'done') { kind = 'done'; until = null; }
+    else if (e.kind === 'snooze') { kind = 'snooze'; until = e.until || null; }
+    else if (e.kind === 'reopen') { kind = 'open'; until = null; }
+    else if (e.kind === 'bump') priority += Number(e.bump) || 0;
+    else if (e.kind === 'status') status = e.status || null;
+  }
+
+  return { ...rec, kind, until, status, priority, at: rec.at, lastAt: rec.lastAt || rec.at };
 }
 
 // The scheduled tasks have no session, so they carry a token instead. They need
@@ -45,13 +97,16 @@ export async function listAll() {
     const cutoff = Date.now() - MAX_AGE_DAYS * 86400000;
     const out = [];
     for (const b of blobs) {
-      const rec = await s.get(b.key, { type: 'json' });
-      if (!rec) continue;
+      const raw = await s.get(b.key, { type: 'json' });
+      if (!raw) continue;
+      const rec = derive(normalise(raw));
+      // Age off LAST touch, not first. An item he is still talking about is
+      // still live, however long ago it first appeared.
       // A snooze outlives the 45 day window if its date is further out.
-      const fresh = Date.parse(rec.at) > cutoff || isSnoozed(rec, Date.now());
+      const fresh = Date.parse(rec.lastAt) > cutoff || isSnoozed(rec, Date.now());
       if (fresh) out.push(rec);
     }
-    return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    return out.sort((a, b) => Date.parse(b.lastAt) - Date.parse(a.lastAt));
   } catch (e) {
     // A missing or unreachable store must never take the page down. An item that
     // reappears is a small annoyance. A blank page is not.
@@ -64,8 +119,16 @@ export async function listForPage() {
   const now = Date.now();
   const all = await listAll();
   return {
-    cleared: all.filter((r) => r.kind !== 'snooze'),
-    hidden: all.filter((r) => isSnoozed(r, now)).map((r) => r.id)
+    // `cleared` is DONE only. It used to be "not snoozed", which was the same
+    // thing while done and snooze were the only two verbs. It is not the same
+    // thing now: an open item carrying a comment would have been struck
+    // through as if he had finished it.
+    cleared: all.filter((r) => r.kind === 'done'),
+    hidden: all.filter((r) => isSnoozed(r, now)).map((r) => r.id),
+    // Still open, but he has said something about it. The page draws the note,
+    // the status and the priority on the item itself.
+    updated: all.filter((r) => r.kind === 'open' &&
+      ((r.events || []).some((e) => e.kind === 'comment') || r.priority || r.status))
   };
 }
 
@@ -81,9 +144,14 @@ export default async (request) => {
     if (!taskAuthorised(request)) return json({ error: 'Not authorised' }, 401);
     const all = await listAll();
     return json({
-      cleared: all.filter((r) => r.kind !== 'snooze'),
+      cleared: all.filter((r) => r.kind === 'done'),
       snoozed: all.filter((r) => r.kind === 'snooze'),
-      dueToday: await listDueSnoozes()
+      dueToday: await listDueSnoozes(),
+      // New and additive. Items still open that Ben has commented on, bumped or
+      // given a status. The refresh task reads this so his words survive the
+      // rebuild instead of being flattened by the next regenerated page.
+      updated: all.filter((r) => r.kind === 'open' &&
+        ((r.events || []).some((e) => e.kind === 'comment') || r.priority || r.status))
     });
   }
 
@@ -117,6 +185,9 @@ export default async (request) => {
 
   // Undo. He is reading this one handed on a site, so a mis-tap has to be
   // recoverable. Without this the only way back is waiting 45 days.
+  //
+  // Undo deletes the whole thread, which is right: it means "I never touched
+  // this". To take back one verb and keep the log, reopen instead.
   if (request.method === 'DELETE') {
     try {
       await store().delete(key);
@@ -126,25 +197,68 @@ export default async (request) => {
     return json({ ok: true, undone: id });
   }
 
-  // Record how it was cleared, so the Friday sweep can tell Ben whether he
-  // tapped it or replied to the email, and so a bad email parse is traceable.
-  const record = {
-    id,
-    label,
-    note,
+  // No action means the old caller: the page's Done button, the email reply
+  // parser, anything written before today. Those sent {id, label, note} for done
+  // and added {until} for snooze, and they must keep behaving EXACTLY as they
+  // did. Two scheduled tasks post here and neither knows about actions.
+  const action = String(body.action || (until ? 'snooze' : 'done')).trim().toLowerCase();
+  const ALLOWED = ['done', 'snooze', 'reopen', 'comment', 'bump', 'status'];
+  if (!ALLOWED.includes(action)) {
+    return json({ error: 'Unknown action: ' + action }, 400);
+  }
+  if (action === 'snooze' && !until) {
+    return json({ error: 'Snooze needs a date' }, 400);
+  }
+
+  const status = String(body.status || '').trim().slice(0, 40);
+  // Bump is a nudge, not a rank. Clamped so one fat-fingered tap cannot pin an
+  // item to the top of the page forever.
+  const bump = Math.max(-3, Math.min(3, Math.round(Number(body.bump) || 0)));
+  if (action === 'bump' && !bump) return json({ error: 'Bump needs a direction' }, 400);
+  if (action === 'comment' && !note) return json({ error: 'Nothing to say' }, 400);
+
+  const event = {
     at: new Date().toISOString(),
     via: byTask ? 'email-reply' : 'page',
-    kind: until ? 'snooze' : 'done',
-    ...(until ? { until } : {})
+    kind: action,
+    text: note,
+    ...(action === 'snooze' ? { until } : {}),
+    ...(action === 'bump' ? { bump } : {}),
+    ...(action === 'status' ? { status } : {})
   };
 
+  // Read, append, write. Two taps in the same second could in principle lose the
+  // earlier one, and that is a real hole. It is also one person on one phone,
+  // and the alternative is a lock that can strand the store. If it ever bites,
+  // the fix is one blob per event rather than a lock.
+  let record;
   try {
-    await store().setJSON(key, record);
+    const s = store();
+    const prev = normalise(await s.get(key, { type: 'json' }));
+    record = {
+      id,
+      // Keep the first label we were given. The rebuilt page rewords items, and
+      // the log should still read like the thing he acted on.
+      label: (prev && prev.label) || label,
+      // `at` is FIRST touch now, not last, so the log can say when this
+      // started. Everything that cares about freshness — ageing off, sorting —
+      // reads lastAt instead.
+      at: (prev && prev.at) || event.at,
+      lastAt: event.at,
+      via: event.via,
+      // Top-level `note` stays the latest note. The daily email and the Friday
+      // sweep read it and predate the thread.
+      note: note || (prev && prev.note) || '',
+      events: [...((prev && prev.events) || []), event].slice(-100)
+    };
+    await s.setJSON(key, record);
   } catch (e) {
     return json({ error: 'Could not record that. ' + String(e.message || e) }, 502);
   }
 
-  return json({ ok: true, cleared: record });
+  // `cleared` is what every existing caller reads out of this response. It has
+  // always been the record with its kind on it, and derive() puts the kind back.
+  return json({ ok: true, cleared: derive(record) });
 };
 
 export const config = { path: '/api/done' };

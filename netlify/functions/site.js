@@ -167,7 +167,7 @@ function hideSnoozed(page, hidden) {
   return page.slice(0, i) + css + page.slice(i);
 }
 
-function inject(page, widget, tabs, brand, cleared, hidden) {
+function inject(page, widget, tabs, brand, cleared, hidden, updated) {
   const bits = [];
   if (cleared) {
     bits.push(
@@ -180,6 +180,16 @@ function inject(page, widget, tabs, brand, cleared, hidden) {
     bits.push(
       '<script>window.__NUVO_HIDDEN__ = ' +
       JSON.stringify(hidden).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
+  /* Items still open that Ben has said something about. The rebuilt page knows
+     nothing about any of it, so the widget redraws his comment, status and
+     priority onto the item after the task has written over it. */
+  if (updated && updated.length) {
+    bits.push(
+      '<script>window.__NUVO_UPDATED__ = ' +
+      JSON.stringify(updated).replace(/</g, '\\u003c') +
       ';</script>'
     );
   }
@@ -225,7 +235,7 @@ export default async (request) => {
 
   // Not cached. What Ben has cleared or snoozed changes between requests, and a
   // stale list is the exact failure this exists to prevent.
-  const { cleared, hidden } = await listForPage();
+  const { cleared, hidden, updated } = await listForPage();
 
   const headers = {
     'content-type': 'text/html; charset=utf-8',
@@ -233,19 +243,20 @@ export default async (request) => {
     'x-nuvo-chat': cachedWidget ? 'on' : 'missing',
     'x-nuvo-tabs': cachedTabs ? 'on' : 'missing',
     'x-nuvo-brand': cachedBrand ? 'on' : 'missing',
-    'x-nuvo-cleared': String(cleared.length)
+    'x-nuvo-cleared': String(cleared.length),
+    'x-nuvo-updated': String(updated.length)
   };
 
   if (!cachedPage) {
     /* No tabs on the fallback page. There is no Today to tab away from, and a
        tab bar over an apology reads like the page is fine. */
-    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cachedBrand, cleared, hidden), {
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cachedBrand, cleared, hidden, updated), {
       status: 200,
       headers: { ...headers, 'x-nuvo-page': 'missing' }
     });
   }
 
-  return new Response(inject(cachedPage.text, cachedWidget, cachedTabs, cachedBrand, cleared, hidden), {
+  return new Response(inject(cachedPage.text, cachedWidget, cachedTabs, cachedBrand, cleared, hidden, updated), {
     status: 200,
     headers: { ...headers, 'x-nuvo-page': 'ok' }
   });
