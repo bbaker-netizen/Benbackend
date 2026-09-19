@@ -1,0 +1,275 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { isSignedIn } from './_auth.js';
+import { listForPage } from './done.js';
+import { currentPage } from './page.js';
+
+// The root of the site is a function, not a static file, because the page holds
+// client names, job values and team performance. Nobody sees a line of it before
+// the password is right.
+//
+// What it serves is the page the twice-daily refresh task last POSTed to
+// /api/page, held in a blob. If there is none, it serves the command-centre.html
+// bundled with the deploy, which is the seed and the fallback. That page is the
+// dashboard and nothing else. The chat is
+// injected here, from chat-widget.html, so the refresh task never has to rebuild
+// it and can never break it.
+
+const LOGIN = `<!DOCTYPE html>
+<html lang="en-CA"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nuvo Command Centre</title>
+<style>
+  :root { color-scheme: light dark; --navy:#143f5c; --sand:#cfb39c; }
+  body { margin:0; min-height:100dvh; display:grid; place-items:center;
+    background:#f5f5f7; color:#454242; font-family:Epilogue,system-ui,-apple-system,"Segoe UI",sans-serif; }
+  @media (prefers-color-scheme: dark) { body { background:#0e1418; color:#f2efec; } }
+  .card { width:min(360px,90vw); text-align:center; }
+  .mark { font-size:26px; font-weight:700; letter-spacing:.17em; color:var(--navy); }
+  @media (prefers-color-scheme: dark) { .mark { color:#7fb2d4; } }
+  .sub { font-size:10px; font-weight:600; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--sand); margin-bottom:26px; }
+  input { width:100%; font:inherit; font-size:16px; padding:13px 15px; border-radius:10px;
+    border:1px solid rgba(20,63,92,.2); background:#fff; color:#454242; margin-bottom:10px; }
+  @media (prefers-color-scheme: dark) { input { background:#18222a; color:#f2efec; border-color:rgba(255,255,255,.14); } }
+  button { width:100%; font:inherit; font-size:15px; font-weight:700; padding:13px;
+    border-radius:50px; border:none; background:var(--navy); color:#fff; cursor:pointer; }
+  .err { color:#d03b3b; font-size:14px; min-height:20px; margin-top:10px; }
+</style></head><body>
+<div class="card">
+  <div class="mark">NUVO</div>
+  <div class="sub">Construction</div>
+  <form id="f">
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password" autofocus>
+    <button type="submit">Open</button>
+  </form>
+  <div class="err" id="e"></div>
+</div>
+<script>
+document.getElementById('f').addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  var e = document.getElementById('e');
+  e.textContent = '';
+  fetch('/api/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password: document.getElementById('p').value })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.ok) location.reload(); else e.textContent = d.error || 'Wrong password';
+  }).catch(function () { e.textContent = 'Could not reach the server.'; });
+});
+</script>
+</body></html>`;
+
+// The bundler and the includedFiles setting can each land a file in a different
+// place. Try the lot rather than betting on one and serving a 500 at 6:30am.
+function candidates(name) {
+  const here = new URL('./', import.meta.url);
+  return [
+    new URL(name, here),                                  // bundled beside the function
+    new URL(`../../${name}`, here),                       // repo root, relative to the function
+    path.join(process.cwd(), name),                       // repo root, relative to the task root
+    path.join('/var/task', name)
+  ];
+}
+
+async function load(name) {
+  for (const c of candidates(name)) {
+    try {
+      const text = await readFile(c, 'utf8');
+      return { text, from: String(c) };
+    } catch (e) {
+      // Keep going. Only the last failure is worth reporting.
+    }
+  }
+  return null;
+}
+
+// The widget, tabs and brand change only with a deploy, so they are read once per
+// cold start. The bundled page is only the fallback and is cached the same way.
+// The live page is NOT cached: it comes from the blob on every request, because
+// it changes twice a day without a deploy, and caching it is exactly how a page
+// freezes.
+let cachedPage = null;
+let cachedWidget = null;
+let cachedTabs = null;
+let cachedBrand = null;
+
+// If the page file is ever missing, say so plainly. A blank screen or a stale
+// page presented as current is worse than an honest empty one, and the chat
+// still works, so Ben is not stranded.
+function fallbackPage(detail) {
+  return `<!DOCTYPE html>
+<html lang="en-CA"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nuvo Command Centre</title>
+<style>
+  :root { color-scheme: light dark; --navy:#143f5c; --sand:#cfb39c; --surface-1:#fff;
+    --offwhite:#f0ede8; --ink-1:#454242; --ink-muted:#928d8a; --grid:#e0e0df;
+    --border:rgba(20,63,92,.12); --critical:#d03b3b; --success-text:#006300; }
+  @media (prefers-color-scheme: dark) { :root { --navy:#7fb2d4; --surface-1:#18222a;
+    --offwhite:#1e2930; --ink-1:#f2efec; --ink-muted:#8f8a86; --grid:#2a3740;
+    --border:rgba(255,255,255,.10); } }
+  body { margin:0; padding:0 0 90px; background:#f5f5f7; color:var(--ink-1);
+    font-family:Epilogue,system-ui,-apple-system,"Segoe UI",sans-serif; }
+  @media (prefers-color-scheme: dark) { body { background:#0e1418; } }
+  .brandbar { background:#143f5c; border-bottom:3px solid var(--sand); }
+  .wrap { max-width:680px; margin:0 auto; padding:15px 16px; }
+  .mark { font-size:20px; font-weight:700; letter-spacing:.17em; color:#fff; }
+  h1 { font-size:22px; margin:22px 0 8px; }
+  p { line-height:1.55; }
+  a { color:var(--navy); }
+</style></head><body>
+<div class="brandbar"><div class="wrap"><span class="mark">NUVO</span></div></div>
+<div class="wrap">
+  <h1>The page did not get built</h1>
+  <p>The refresh task did not leave a command centre page on this deploy, so there
+  is nothing current to show you. Rather than show you yesterday's numbers as if
+  they were today's, here is nothing, honestly.</p>
+  <p>The chat still works. Tap Ask, bottom right, and it will pull live figures
+  out of JobTread for you.</p>
+  <p style="color:var(--ink-muted);font-size:13px">${detail}</p>
+  <p><a href="/api/login?out=1">Sign out</a></p>
+</div>
+</body></html>`;
+}
+
+// The chat goes in last, just inside the closing body tag, so it is appended to
+// document.body and never inside .wrap. The widget reads .wrap innerText as its
+// context; anything inside .wrap would feed the conversation back into itself.
+//
+// The cleared list rides in ahead of it. The refresh task rebuilds the page from
+// the ledger and the mailbox twice a weekday and will happily put back something
+// Ben cleared an hour ago. This is what stops that, and it is enforced here on
+// the server rather than trusted to the task.
+// A snoozed item is hidden by CSS in the HEAD, before the body paints, so there
+// is no flash of an item Ben has already put away. :has() does the work in every
+// browser he uses; the widget removes them outright as a belt and braces for
+// anything older. Nothing renders a count and nothing renders a list.
+// The brand tokens go at the END of the head, after whatever the refresh task
+// wrote, so they win without needing !important. Same reasoning as the chat and
+// the tabs: the page is rebuilt twice a weekday and anything that must hold has
+// to live outside it.
+function addToHead(page, block) {
+  if (!block) return page;
+  const i = page.toLowerCase().lastIndexOf('</head>');
+  if (i === -1) return block + page;
+  return page.slice(0, i) + block + page.slice(i);
+}
+
+function hideSnoozed(page, hidden) {
+  if (!hidden || !hidden.length) return page;
+  const sel = hidden
+    .map((id) => String(id).replace(/["\\]/g, ''))
+    .flatMap((id) => [
+      `.start:has([data-done-id="${id}"])`,
+      `.theme:has([data-done-id="${id}"])`,
+      `.row:has([data-done-id="${id}"])`
+    ])
+    .join(',');
+  const css = `<style>${sel}{display:none !important}</style>`;
+  const i = page.toLowerCase().lastIndexOf('</head>');
+  if (i === -1) return css + page;
+  return page.slice(0, i) + css + page.slice(i);
+}
+
+function inject(page, widget, tabs, brand, cleared, hidden, updated) {
+  const bits = [];
+  if (cleared) {
+    bits.push(
+      '<script>window.__NUVO_CLEARED__ = ' +
+      JSON.stringify(cleared).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
+  if (hidden && hidden.length) {
+    bits.push(
+      '<script>window.__NUVO_HIDDEN__ = ' +
+      JSON.stringify(hidden).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
+  /* Items still open that Ben has said something about. The rebuilt page knows
+     nothing about any of it, so the widget redraws his comment, status and
+     priority onto the item after the task has written over it. */
+  if (updated && updated.length) {
+    bits.push(
+      '<script>window.__NUVO_UPDATED__ = ' +
+      JSON.stringify(updated).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
+  if (widget) bits.push(widget);
+  /* The tabs go in after the chat, because the Notes tab borrows the chat's
+     "ask about this" rather than writing a second one, and the widget has to
+     have published it first. */
+  if (tabs) bits.push(tabs);
+  if (!bits.length) return page;
+  const blob = bits.join('\n');
+  const withHide = hideSnoozed(addToHead(page, brand), hidden);
+  const i = withHide.toLowerCase().lastIndexOf('</body>');
+  if (i === -1) return withHide + '\n' + blob + '\n';
+  return withHide.slice(0, i) + blob + '\n' + withHide.slice(i);
+}
+
+export default async (request) => {
+  if (!isSignedIn(request)) {
+    return new Response(LOGIN, {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }
+    });
+  }
+
+  if (cachedWidget === null) {
+    const w = await load('chat-widget.html');
+    cachedWidget = w ? w.text : '';
+  }
+
+  if (cachedTabs === null) {
+    const t = await load('tabs.html');
+    cachedTabs = t ? t.text : '';
+  }
+
+  if (cachedBrand === null) {
+    const b = await load('brand.html');
+    cachedBrand = b ? b.text : '';
+  }
+
+  // The stored page wins whenever there is one. It is newer by construction.
+  const stored = await currentPage();
+  if (!stored && cachedPage === null) {
+    cachedPage = await load('command-centre.html');
+  }
+  const page = stored ? { text: stored.html } : cachedPage;
+
+  // Not cached. What Ben has cleared or snoozed changes between requests, and a
+  // stale list is the exact failure this exists to prevent.
+  const { cleared, hidden, updated } = await listForPage();
+
+  const headers = {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'x-nuvo-chat': cachedWidget ? 'on' : 'missing',
+    'x-nuvo-tabs': cachedTabs ? 'on' : 'missing',
+    'x-nuvo-brand': cachedBrand ? 'on' : 'missing',
+    'x-nuvo-cleared': String(cleared.length),
+    'x-nuvo-updated': String(updated.length),
+    'x-nuvo-page-built': stored ? String(stored.builtAt) : 'bundled'
+  };
+
+  if (!page) {
+    /* No tabs on the fallback page. There is no Today to tab away from, and a
+       tab bar over an apology reads like the page is fine. */
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cachedBrand, cleared, hidden, updated), {
+      status: 200,
+      headers: { ...headers, 'x-nuvo-page': 'missing' }
+    });
+  }
+
+  return new Response(inject(page.text, cachedWidget, cachedTabs, cachedBrand, cleared, hidden, updated), {
+    status: 200,
+    headers: { ...headers, 'x-nuvo-page': 'ok' }
+  });
+};
+
+export const config = { path: '/' };
