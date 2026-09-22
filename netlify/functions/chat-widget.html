@@ -230,6 +230,35 @@
     return readable(c).replace(/\s+\n/g, '\n').slice(0, 12000);
   }
 
+  /* The ids of everything actionable on the page, with the line each sits on.
+     The page text the chat reads carries no ids at all, so without this it could
+     talk about an item and still have no way to record anything against it. */
+  function pageItems() {
+    var out = [];
+    var seen = {};
+    var all = document.querySelectorAll('[data-done-id]');
+    for (var i = 0; i < all.length && out.length < 60; i++) {
+      var id = all[i].getAttribute('data-done-id');
+      if (!id || seen[id]) continue;
+      seen[id] = 1;
+      var box = containerOf(all[i]);
+      var label = box ? String(box.innerText || box.textContent || '') : '';
+      label = label.split('\n')[0].trim().slice(0, 160);
+      out.push({ id: id, label: label });
+    }
+    return out;
+  }
+
+  /* The item box carrying an id, so a change the chat records can be painted on
+     the thing he is looking at. */
+  function boxFor(id) {
+    var all = document.querySelectorAll('[data-done-id]');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-done-id') === id) return containerOf(all[i]);
+    }
+    return null;
+  }
+
   /* Set when Ben taps Ask on a particular item. The next thing he types is about
      that item, so it rides along to the model once and is then cleared. It is
      never shown in the conversation, because he can already see the item. */
@@ -319,6 +348,7 @@
       body: JSON.stringify({
         question: carried ? carried + q : q,
         page: pageContext(),
+        items: pageItems(),
         history: history.slice(-8).map(function (m) {
           return { role: m.who === 'me' ? 'user' : 'assistant', text: m.text };
         })
@@ -339,6 +369,24 @@
         thinking.appendChild(document.createElement('br'));
         thinking.appendChild(tag);
       }
+      /* If he told the chat a thing was done, the page has to agree with him
+         there and then. Waiting for the twice daily rebuild is how it ends up
+         showing him work he has already finished, which is the whole complaint. */
+      if (d.changed && d.changed.length) {
+        for (var ci = 0; ci < d.changed.length; ci++) {
+          var ch = d.changed[ci];
+          if (!ch || !ch.id) continue;
+          if (ch.kind === 'done') clearItem(ch.id, shortDate(ch.at));
+          else if (ch.kind === 'snooze') hideItem(ch.id);
+          else if (ch.record) {
+            /* comment, status or reopen. Same repaint the Update box does, so
+               one item never has two ways of looking. */
+            if (SEED) SEED[ch.id] = ch.record;
+            paintItem(boxFor(ch.id), ch.record);
+          }
+        }
+      }
+
       history.push({ who: 'me', text: q }, { who: 'bot', text: d.answer });
       msgs.scrollTop = msgs.scrollHeight;
     }).catch(function (e) {
