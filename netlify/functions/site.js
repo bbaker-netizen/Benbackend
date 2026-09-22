@@ -2,13 +2,16 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isSignedIn } from './_auth.js';
 import { listForPage } from './done.js';
+import { currentPage } from './page.js';
 
 // The root of the site is a function, not a static file, because the page holds
 // client names, job values and team performance. Nobody sees a line of it before
 // the password is right.
 //
-// What it serves is command-centre.html, which the twice-daily refresh task
-// overwrites in place. That file is the dashboard and nothing else. The chat is
+// What it serves is the page the twice-daily refresh task last POSTed to
+// /api/page, held in a blob. If there is none, it serves the command-centre.html
+// bundled with the deploy, which is the seed and the fallback. That page is the
+// dashboard and nothing else. The chat is
 // injected here, from chat-widget.html, so the refresh task never has to rebuild
 // it and can never break it.
 
@@ -82,8 +85,11 @@ async function load(name) {
   return null;
 }
 
-// Read once per cold start. The task redeploys the whole app, so a new page
-// always arrives with a new deploy and there is no stale cache to worry about.
+// The widget, tabs and brand change only with a deploy, so they are read once per
+// cold start. The bundled page is only the fallback and is cached the same way.
+// The live page is NOT cached: it comes from the blob on every request, because
+// it changes twice a day without a deploy, and caching it is exactly how a page
+// freezes.
 let cachedPage = null;
 let cachedWidget = null;
 let cachedTabs = null;
@@ -167,7 +173,7 @@ function hideSnoozed(page, hidden) {
   return page.slice(0, i) + css + page.slice(i);
 }
 
-function inject(page, widget, tabs, brand, cleared, hidden) {
+function inject(page, widget, tabs, brand, cleared, hidden, updated) {
   const bits = [];
   if (cleared) {
     bits.push(
@@ -180,6 +186,16 @@ function inject(page, widget, tabs, brand, cleared, hidden) {
     bits.push(
       '<script>window.__NUVO_HIDDEN__ = ' +
       JSON.stringify(hidden).replace(/</g, '\\u003c') +
+      ';</script>'
+    );
+  }
+  /* Items still open that Ben has said something about. The rebuilt page knows
+     nothing about any of it, so the widget redraws his comment, status and
+     priority onto the item after the task has written over it. */
+  if (updated && updated.length) {
+    bits.push(
+      '<script>window.__NUVO_UPDATED__ = ' +
+      JSON.stringify(updated).replace(/</g, '\\u003c') +
       ';</script>'
     );
   }
@@ -219,13 +235,16 @@ export default async (request) => {
     cachedBrand = b ? b.text : '';
   }
 
-  if (cachedPage === null) {
+  // The stored page wins whenever there is one. It is newer by construction.
+  const stored = await currentPage();
+  if (!stored && cachedPage === null) {
     cachedPage = await load('command-centre.html');
   }
+  const page = stored ? { text: stored.html } : cachedPage;
 
   // Not cached. What Ben has cleared or snoozed changes between requests, and a
   // stale list is the exact failure this exists to prevent.
-  const { cleared, hidden } = await listForPage();
+  const { cleared, hidden, updated } = await listForPage();
 
   const headers = {
     'content-type': 'text/html; charset=utf-8',
@@ -233,19 +252,21 @@ export default async (request) => {
     'x-nuvo-chat': cachedWidget ? 'on' : 'missing',
     'x-nuvo-tabs': cachedTabs ? 'on' : 'missing',
     'x-nuvo-brand': cachedBrand ? 'on' : 'missing',
-    'x-nuvo-cleared': String(cleared.length)
+    'x-nuvo-cleared': String(cleared.length),
+    'x-nuvo-updated': String(updated.length),
+    'x-nuvo-page-built': stored ? String(stored.builtAt) : 'bundled'
   };
 
-  if (!cachedPage) {
+  if (!page) {
     /* No tabs on the fallback page. There is no Today to tab away from, and a
        tab bar over an apology reads like the page is fine. */
-    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cachedBrand, cleared, hidden), {
+    return new Response(inject(fallbackPage('command-centre.html was not found in this deploy.'), cachedWidget, '', cachedBrand, cleared, hidden, updated), {
       status: 200,
       headers: { ...headers, 'x-nuvo-page': 'missing' }
     });
   }
 
-  return new Response(inject(cachedPage.text, cachedWidget, cachedTabs, cachedBrand, cleared, hidden), {
+  return new Response(inject(page.text, cachedWidget, cachedTabs, cachedBrand, cleared, hidden, updated), {
     status: 200,
     headers: { ...headers, 'x-nuvo-page': 'ok' }
   });
